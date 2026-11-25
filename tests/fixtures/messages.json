@@ -1,0 +1,171 @@
+{
+ "items": [
+  {
+   "id": "00000000-0000-7000-8000-000000000008",
+   "content": "текст сообщения",
+   "type": "DEFAULT",
+   "metadata": {
+    "isAuto": true
+   },
+   "isHidden": false,
+   "hasSensitiveContent": false,
+   "images": [],
+   "buttons": [],
+   "authorId": 9001,
+   "buyerId": null,
+   "sellerId": null,
+   "adminId": null,
+   "chatId": "00000000-0000-7000-8000-000000000006",
+   "visibleTo": null,
+   "replyToMessageId": null,
+   "reaction": null,
+   "reactionAuthorId": null,
+   "createdAt": "2026-06-27T09:25:51.808Z",
+   "updatedAt": "2026-06-27T09:25:51.779Z",
+   "author": {
+    "id": 106,
+    "username": "starvell_robot",
+    "displayName": "x",
+    "roles": [
+     "SUPPORT"
+    ],
+    "messagesHidden": false
+   },
+   "buyer": null,
+   "seller": null,
+   "admin": null,
+   "order": null,
+   "offer": null,
+   "dispute": null,
+   "replyTo": null
+  },
+  {
+   "id": "00000000-0000-7000-8000-000000000019",
+   "content": "",
+   "type": "DEFAULT",
+   "metadata": {
+    "isAuto": true
+   },
+   "isHidden": false,
+   "hasSensitiveContent": false,
+   "images": [
+    {
+     "id": "00000000-0000-7000-8000-000000000020",
+     "width": 1162,
+     "height": 687,
+     "extension": "png"
+    }
+   ],
+   "buttons": [],
+   "authorId": 9001,
+   "buyerId": null,
+   "sellerId": null,
+   "adminId": null,
+   "chatId": "00000000-0000-7000-8000-000000000006",
+   "visibleTo": null,
+   "replyToMessageId": null,
+   "reaction": null,
+   "reactionAuthorId": null,
+   "createdAt": "2026-06-27T09:25:51.801Z",
+   "updatedAt": "2026-06-27T09:25:51.779Z",
+   "author": {
+    "id": 106,
+    "username": "starvell_robot",
+    "displayName": "x",
+    "roles": [
+     "SUPPORT"
+    ],
+    "messagesHidden": false
+   },
+   "buyer": null,
+   "seller": null,
+   "admin": null,
+   "order": null,
+   "offer": null,
+   "dispute": null,
+   "replyTo": null
+  },
+  {
+   "id": "00000000-0000-7000-8000-000000000021",
+   "content": "текст сообщения",
+   "type": "DEFAULT",
+   "metadata": {
+    "isAuto": true
+   },
+   "isHidden": false,
+   "hasSensitiveContent": false,
+   "images": [],
+   "buttons": [],
+   "authorId": 9001,
+   "buyerId": null,
+   "sellerId": null,
+   "adminId": null,
+   "chatId": "00000000-0000-7000-8000-000000000006",
+   "visibleTo": null,
+   "replyToMessageId": null,
+   "reaction": null,
+   "reactionAuthorId": null,
+   "createdAt": "2026-06-27T09:25:51.787Z",
+   "updatedAt": "2026-06-27T09:25:51.779Z",
+   "author": {
+    "id": 106,
+    "username": "starvell_robot",
+    "displayName": "x",
+    "roles": [
+     "SUPPORT"
+    ],
+    "messagesHidden": false
+   },
+   "buyer": null,
+   "seller": null,
+   "admin": null,
+   "order": null,
+   "offer": null,
+   "dispute": null,
+   "replyTo": null
+  },
+  {
+   "id": "00000000-0000-7000-8000-000000000022",
+   "content": "текст сообщения",
+   "type": "DEFAULT",
+   "metadata": {
+    "isAuto": true
+   },
+   "isHidden": false,
+   "hasSensitiveContent": false,
+   "images": [],
+   "buttons": [],
+   "authorId": 9001,
+   "buyerId": null,
+   "sellerId": null,
+   "adminId": null,
+   "chatId": "00000000-0000-7000-8000-000000000006",
+   "visibleTo": null,
+   "replyToMessageId": null,
+   "reaction": null,
+   "reactionAuthorId": null,
+   "createdAt": "2026-01-24T13:33:30.111Z",
+   "updatedAt": "2026-01-24T13:33:30.111Z",
+   "author": {
+    "id": 106,
+    "username": "starvell_robot",
+    "displayName": "x",
+    "roles": [
+     "SUPPORT"
+    ],
+    "messagesHidden": false
+   },
+   "buyer": null,
+   "seller": null,
+   "admin": null,
+   "order": null,
+   "offer": null,
+   "dispute": null,
+   "replyTo": null
+  }
+ ],
+ "nextCursor": "00000000-0000-7000-8000-000000000022",
+ "prevCursor": null,
+ "hasMoreBefore": false,
+ "hasMoreAfter": false
+}

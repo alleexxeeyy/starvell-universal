@@ -1,0 +1,303 @@
+[
+ {
+  "id": "00000000-0000-7000-8000-000000000003",
+  "participants": [
+   {
+    "id": 1001,
+    "publicId": "00000000-0000-7000-8000-000000000001",
+    "username": "seller",
+    "displayName": null,
+    "avatar": "https://example.invalid/avatar.png",
+    "activeFrameCode": null,
+    "createdAt": "2026-01-23T18:39:08.254805+00:00",
+    "isOnline": true,
+    "roles": [],
+    "isOperator": false,
+    "lastReadAt": null,
+    "lastOnlineAt": "2026-11-25T12:03:17.911+00:00",
+    "isBanned": false
+   },
+   {
+    "id": 2002,
+    "publicId": "00000000-0000-7000-8000-000000000004",
+    "username": "buyer",
+    "displayName": null,
+    "avatar": "https://example.invalid/avatar.png",
+    "activeFrameCode": null,
+    "createdAt": "2026-11-25T11:10:39.810639+00:00",
+    "isOnline": true,
+    "roles": [],
+    "isOperator": false,
+    "lastReadAt": null,
+    "lastOnlineAt": "2026-11-25T12:11:27.168+00:00",
+    "isBanned": false
+   }
+  ],
+  "unreadMessageCount": 1,
+  "hasActiveRefundRequest": false,
+  "lastMessage": {
+   "id": "00000000-0000-7000-8000-000000000005",
+   "content": "текст сообщения",
+   "createdAt": "2026-11-25T12:12:06.146486+00:00",
+   "type": "DEFAULT",
+   "metadata": {
+    "offerId": 9000
+   },
+   "authorId": 2002,
+   "hasSensitiveContent": false,
+   "buyer": null,
+   "seller": null,
+   "admin": null,
+   "order": null,
+   "images": []
+  }
+ },
+ {
+  "id": "00000000-0000-7000-8000-000000000006",
+  "participants": [
+   {
+    "id": 106,
+    "publicId": "00000000-0000-7000-8000-000000000007",
+    "username": "starvell_robot",
+    "displayName": "x",
+    "avatar": "https://example.invalid/avatar.png",
+    "activeFrameCode": null,
+    "createdAt": "2025-05-15T15:39:21.23225+00:00",
+    "isOnline": false,
+    "roles": [
+     "SUPPORT"
+    ],
+    "isOperator": false,
+    "lastReadAt": null,
+    "lastOnlineAt": "2026-09-18T12:58:04.232+00:00",
+    "isBanned": false
+   },
+   {
+    "id": 1001,
+    "publicId": "00000000-0000-7000-8000-000000000001",
+    "username": "seller",
+    "displayName": null,
+    "avatar": "https://example.invalid/avatar.png",
+    "activeFrameCode": null,
+    "createdAt": "2026-01-23T18:39:08.254805+00:00",
+    "isOnline": true,
+    "roles": [],
+    "isOperator": false,
+    "lastReadAt": "2026-06-27T09:26:39.635+00:00",
+    "lastOnlineAt": "2026-11-25T12:03:17.911+00:00",
+    "isBanned": false
+   }
+  ],
+  "unreadMessageCount": 0,
+  "hasActiveRefundRequest": false,
+  "lastMessage": {
+   "id": "00000000-0000-7000-8000-000000000008",
+   "content": "текст сообщения",
+   "createdAt": "2026-06-27T09:25:51.808+00:00",
+   "type": "DEFAULT",
+   "metadata": {
+    "isAuto": true
+   },
+   "authorId": 9001,
+   "hasSensitiveContent": false,
+   "buyer": null,
+   "seller": null,
+   "admin": null,
+   "order": null,
+   "images": []
+  }
+ },
+ {
+  "id": "00000000-0000-7000-8000-000000000009",
+  "participants": [
+   {
+    "id": 9002,
+    "publicId": "00000000-0000-7000-8000-000000000010",
+    "username": "user",
+    "displayName": null,
+    "avatar": "https://example.invalid/avatar.png",
+    "activeFrameCode": null,
+    "createdAt": "2025-09-25T16:34:22.56648+00:00",
+    "isOnline": false,
+    "roles": [],
+    "isOperator": false,
+    "lastReadAt": "2026-01-24T20:22:51.386+00:00",
+    "lastOnlineAt": "2026-08-24T10:06:04.792+00:00",
+    "isBanned": false
+   },
+   {
+    "id": 1001,
+    "publicId": "00000000-0000-7000-8000-000000000001",
+    "username": "seller",
+    "displayName": null,
+    "avatar": "https://example.invalid/avatar.png",
+    "activeFrameCode": null,
+    "createdAt": "2026-01-23T18:39:08.254805+00:00",
+    "isOnline": true,
+    "roles": [],
+    "isOperator": false,
+    "lastReadAt": "2026-06-27T09:26:46.978+00:00",
+    "lastOnlineAt": "2026-11-25T12:03:17.911+00:00",
+    "isBanned": false
+   }
+  ],
+  "unreadMessageCount": 0,
+  "hasActiveRefundRequest": false,
+  "lastMessage": {
+   "id": "00000000-0000-7000-8000-000000000011",
+   "content": "текст сообщения",
+   "createdAt": "2026-01-24T20:23:09.406756+00:00",
+   "type": "DEFAULT",
+   "metadata": null,
+   "authorId": 9002,
+   "hasSensitiveContent": false,
+   "buyer": null,
+   "seller": null,
+   "admin": null,
+   "order": null,
+   "images": []
+  }
+ },
+ {
+  "id": "00000000-0000-7000-8000-000000000012",
+  "participants": [
+   {
+    "id": 9003,
+    "publicId": "00000000-0000-7000-8000-000000000013",
+    "username": "user",
+    "displayName": null,
+    "avatar": "https://example.invalid/avatar.png",
+    "activeFrameCode": "SEEKER",
+    "createdAt": "2026-01-15T17:21:54.564488+00:00",
+    "isOnline": false,
+    "roles": [],
+    "isOperator": false,
+    "lastReadAt": "2026-01-24T16:01:03.951+00:00",
+    "lastOnlineAt": "2026-11-24T05:04:16.111+00:00",
+    "isBanned": false
+   },
+   {
+    "id": 1001,
+    "publicId": "00000000-0000-7000-8000-000000000001",
+    "username": "seller",
+    "displayName": null,
+    "avatar": "https://example.invalid/avatar.png",
+    "activeFrameCode": null,
+    "createdAt": "2026-01-23T18:39:08.254805+00:00",
+    "isOnline": true,
+    "roles": [],
+    "isOperator": false,
+    "lastReadAt": "2026-01-24T16:01:06.091+00:00",
+    "lastOnlineAt": "2026-11-25T12:03:17.911+00:00",
+    "isBanned": false
+   }
+  ],
+  "unreadMessageCount": 0,
+  "hasActiveRefundRequest": false,
+  "lastMessage": {
+   "id": "00000000-0000-7000-8000-000000000014",
+   "content": "текст сообщения",
+   "createdAt": "2026-01-24T16:01:05.993169+00:00",
+   "type": "DEFAULT",
+   "metadata": null,
+   "authorId": 9003,
+   "hasSensitiveContent": false,
+   "buyer": null,
+   "seller": null,
+   "admin": null,
+   "order": null,
+   "images": []
+  }
+ },
+ {
+  "id": "00000000-0000-7000-8000-000000000015",
+  "participants": [
+   {
+    "id": 9004,
+    "publicId": "00000000-0000-7000-8000-000000000016",
+    "username": "user",
+    "displayName": null,
+    "avatar": "https://example.invalid/avatar.png",
+    "activeFrameCode": null,
+    "createdAt": "2025-09-29T23:33:53.600227+00:00",
+    "isOnline": false,
+    "roles": [],
+    "isOperator": false,
+    "lastReadAt": "2026-01-24T13:33:30.408+00:00",
+    "lastOnlineAt": "2026-11-08T21:59:03.779+00:00",
+    "isBanned": false
+   },
+   {
+    "id": 1001,
+    "publicId": "00000000-0000-7000-8000-000000000001",
+    "username": "seller",
+    "displayName": null,
+    "avatar": "https://example.invalid/avatar.png",
+    "activeFrameCode": null,
+    "createdAt": "2026-01-23T18:39:08.254805+00:00",
+    "isOnline": true,
+    "roles": [],
+    "isOperator": false,
+    "lastReadAt": "2026-01-24T13:33:30.312+00:00",
+    "lastOnlineAt": "2026-11-25T12:03:17.911+00:00",
+    "isBanned": false
+   }
+  ],
+  "unreadMessageCount": 0,
+  "hasActiveRefundRequest": false,
+  "lastMessage": {
+   "id": "00000000-0000-7000-8000-000000000017",
+   "content": "",
+   "createdAt": "2026-01-24T13:33:29.990602+00:00",
+   "type": "NOTIFICATION",
+   "metadata": {
+    "orderId": "00000000-0000-7000-8000-000000000018",
+    "notificationType": "ORDER_REFUND"
+   },
+   "authorId": null,
+   "hasSensitiveContent": false,
+   "buyer": {
+    "id": 1001,
+    "username": "seller",
+    "displayName": null
+   },
+   "seller": null,
+   "admin": {
+    "id": 9005,
+    "username": "user",
+    "displayName": null
+   },
+   "order": {
+    "id": "00000000-0000-7000-8000-000000000018",
+    "shortId": "ABCDEFGH",
+    "buyerId": 1001,
+    "sellerId": 9004,
+    "orderArgs": [],
+    "offerDetails": {
+     "game": {
+      "id": 1,
+      "name": "Roblox",
+      "slug": "roblox"
+     },
+     "type": "LOT",
+     "category": {
+      "id": 40,
+      "name": "Донат робуксов (моментально) ",
+      "slug": "packages",
+      "currencyDisplayUnits": null
+     },
+     "attributes": [],
+     "subCategory": {
+      "id": 65,
+      "name": "80 робуксов"
+     },
+     "descriptions": {
+      "rus": {}
+     }
+    },
+    "quantity": 1
+   },
+   "images": []
+  }
+ }
+]

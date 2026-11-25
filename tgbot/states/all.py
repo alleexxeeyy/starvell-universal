@@ -1,0 +1,55 @@
+from aiogram.fsm.state import State, StatesGroup
+
+
+class PageStates(StatesGroup):
+    waiting_for_page = State()
+
+
+class SystemStates(StatesGroup):
+    waiting_for_password = State()
+    waiting_for_access_confirm = State()
+    waiting_for_signed_user_id = State()
+    waiting_for_shared_user = State()
+
+
+class SetupStates(StatesGroup):
+    waiting_for_session = State()
+    waiting_for_user_agent = State()
+    waiting_for_proxy = State()
+
+
+class SettingsStates(StatesGroup):
+    waiting_for_session = State()
+    waiting_for_user_agent = State()
+
+    waiting_for_requests_timeout = State()
+    waiting_for_sv_proxy = State()
+    waiting_for_tg_proxy = State()
+    waiting_for_tg_custom_api_url = State()
+
+    waiting_for_notifications_chat_id = State()
+    waiting_for_watermark_value = State()
+
+    waiting_for_new_fast_reply_text = State()
+    waiting_for_fast_reply_text = State()
+
+    waiting_for_logs_max_file_size = State()
+    waiting_for_module_file = State()
+    waiting_for_config_file = State()
+
+
+class MessagesStates(StatesGroup):
+    waiting_for_message_text = State()
+
+
+class CustomCommandsStates(StatesGroup):
+    waiting_for_new_custom_command = State()
+    waiting_for_new_custom_command_answer = State()
+    
+    waiting_for_custom_command_answer = State()
+
+
+class BlacklistStates(StatesGroup):
+    waiting_for_new_blacklist_username = State()
+    waiting_for_new_blacklist_reason = State()
+    waiting_for_chat_blacklist_reason = State()

@@ -1,0 +1,207 @@
+from aiogram import F, Router
+from aiogram.types import CallbackQuery
+from aiogram.fsm.context import FSMContext
+
+from core.modules import (
+    get_module_by_uuid, 
+    enable_module, 
+    disable_module,
+    set_module_disabled
+)
+from settings import Settings as sett
+
+from .. import templates as templ
+from .. import callback_datas as calls
+from .. import states as states
+from ..helpful import throw_float_message
+from .pagination import callback_blacklist_pagination
+from ..callback_handlers.page import (
+    callback_message_page,
+    callback_module_page
+)
+from .navigation import *
+from .pagination import *
+
+
+router = Router()
+
+
+@router.callback_query(F.data == "switch_blacklist_auto_refund")
+async def callback_switch_blacklist_auto_refund(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["starvell"]["blacklist"]["auto_refund"] = not config["starvell"]["blacklist"]["auto_refund"]
+    sett.set("config", config)
+    data = await state.get_data()
+    return await callback_blacklist_pagination(
+        callback, calls.BlacklistPagination(page=data.get("last_page", 0)), state
+    )
+
+
+@router.callback_query(F.data == "switch_read_chat_enabled")
+async def callback_switch_read_chat_enabled(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["starvell"]["read_chat"] = not config["starvell"]["read_chat"]
+    sett.set("config", config)
+
+    return await callback_menu_navigation(
+        callback, calls.MenuNavigation(to="other"), state
+    )
+
+
+@router.callback_query(F.data == "switch_watermark_enabled")
+async def callback_switch_watermark_enabled(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["starvell"]["watermark"]["enabled"] = not config["starvell"]["watermark"]["enabled"]
+    sett.set("config", config)
+
+    return await callback_menu_navigation(
+        callback, calls.MenuNavigation(to="other"), state
+    )
+
+
+@router.callback_query(F.data == "switch_notifications_enabled")
+async def callback_switch_notifications_enabled(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["starvell"]["notifications"]["enabled"] = not config["starvell"]["notifications"]["enabled"]
+    sett.set("config", config)
+
+    return await callback_menu_navigation(
+        callback, calls.MenuNavigation(to="notifications"), state
+    )
+
+
+@router.callback_query(F.data == "switch_notifications_new_user_message")
+async def callback_switch_notifications_new_user_message(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["starvell"]["notifications"]["events"]["new_user_message"] = not config["starvell"]["notifications"]["events"]["new_user_message"]
+    sett.set("config", config)
+
+    return await callback_menu_navigation(
+        callback, calls.MenuNavigation(to="notifications"), state
+    )
+
+
+@router.callback_query(F.data == "switch_notifications_new_system_message")
+async def callback_switch_notifications_new_system_message(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["starvell"]["notifications"]["events"]["new_system_message"] = not config["starvell"]["notifications"]["events"]["new_system_message"]
+    sett.set("config", config)
+
+    return await callback_menu_navigation(
+        callback, calls.MenuNavigation(to="notifications"), state
+    )
+
+
+@router.callback_query(F.data == "switch_notifications_new_order")
+async def callback_switch_notifications_new_order(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["starvell"]["notifications"]["events"]["new_order"] = not config["starvell"]["notifications"]["events"]["new_order"]
+    sett.set("config", config)
+
+    return await callback_menu_navigation(
+        callback, calls.MenuNavigation(to="notifications"), state
+    )
+
+
+@router.callback_query(F.data == "switch_notifications_new_review")
+async def callback_switch_notifications_new_review(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["starvell"]["notifications"]["events"]["new_review"] = not config["starvell"]["notifications"]["events"]["new_review"]
+    sett.set("config", config)
+
+    return await callback_menu_navigation(
+        callback, calls.MenuNavigation(to="notifications"), state
+    )
+
+
+@router.callback_query(F.data == "switch_notifications_order_status_changed")
+async def callback_switch_notifications_order_status_changed(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["starvell"]["notifications"]["events"]["order_status_changed"] = not config["starvell"]["notifications"]["events"]["order_status_changed"]
+    sett.set("config", config)
+
+    return await callback_menu_navigation(
+        callback, calls.MenuNavigation(to="notifications"), state
+    )
+
+
+@router.callback_query(F.data == "switch_updates_auto_update")
+async def callback_switch_updates_auto_update(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["updates"]["auto_update"] = not config["updates"]["auto_update"]
+    sett.set("config", config)
+
+    return await callback_menu_navigation(
+        callback, calls.MenuNavigation(to="updates"), state
+    )
+
+
+@router.callback_query(F.data == "switch_updates_notify")
+async def callback_switch_updates_notify(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["updates"]["notify"] = not config["updates"]["notify"]
+    sett.set("config", config)
+
+    return await callback_menu_navigation(
+        callback, calls.MenuNavigation(to="updates"), state
+    )
+
+
+@router.callback_query(F.data == "switch_message_enabled")
+async def callback_switch_message_enabled(callback: CallbackQuery, state: FSMContext):
+    try:
+        data = await state.get_data()
+        last_page = data.get("last_page", 0)
+        
+        message_id = data.get("message_id")
+        if not message_id:
+            return await callback_messages_pagination(
+                callback, calls.MessagesPagination(page=last_page), state
+            )
+        
+        messages = sett.get("messages")
+        messages[message_id]["enabled"] = not messages[message_id]["enabled"]
+        sett.set("messages", messages)
+
+        return await callback_message_page(
+            callback, calls.MessagePage(message_id=message_id), state
+        )
+    except Exception as e:
+        await throw_float_message(
+            state=state,
+            message=callback.message,
+            text=templ.mess_float_text(e),
+            reply_markup=templ.back_kb(calls.MessagesPagination(page=last_page).pack())
+        )
+
+
+@router.callback_query(F.data == "switch_module_enabled")
+async def callback_switch_module_enabled(callback: CallbackQuery, state: FSMContext):
+    try:
+        data = await state.get_data()
+        last_page = data.get("last_page", 0)
+        
+        module_uuid = data.get("module_uuid")
+        module = get_module_by_uuid(module_uuid)
+        if not all((module_uuid, module)):
+            return await callback_modules_pagination(
+                callback, calls.ModulesPagination(page=last_page), state
+            )
+
+        if module.enabled:
+            await disable_module(module_uuid)
+            set_module_disabled(module._dir_name, True)
+        else:
+            set_module_disabled(module._dir_name, False)
+            await enable_module(module_uuid)
+
+        return await callback_module_page(
+            callback, calls.ModulePage(uuid=module_uuid), state
+        )
+    except Exception as e:
+        await throw_float_message(
+            state=state,
+            message=callback.message,
+            text=templ.module_page_float_text(e),
+            reply_markup=templ.back_kb(calls.ModulesPagination(page=last_page).pack())
+        )

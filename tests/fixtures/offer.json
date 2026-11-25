@@ -1,0 +1,65 @@
+{
+ "id": 9000,
+ "publicId": "00000000-0000-7000-8000-000000000024",
+ "type": "LOT",
+ "price": "1000.00000",
+ "availability": 10,
+ "availabilityUnit": "UNITS",
+ "descriptions": {
+  "rus": {
+   "description": "x"
+  }
+ },
+ "taxonomySnapshot": {
+  "game": {
+   "id": 1,
+   "name": "Roblox",
+   "slug": "roblox"
+  },
+  "category": {
+   "id": 40,
+   "name": "Донат робуксов (моментально) ",
+   "slug": "packages"
+  },
+  "subCategory": {
+   "id": 64,
+   "name": "40 робуксов",
+   "slug": null
+  }
+ },
+ "deliveryTime": {
+  "to": {
+   "unit": "MINUTES",
+   "value": 5
+  },
+  "from": {
+   "unit": "MINUTES",
+   "value": 1
+  }
+ },
+ "attributes": [],
+ "postPaymentMessage": "текст",
+ "postPaymentMedia": null,
+ "minOrderCurrencyAmount": null,
+ "profilePosition": null,
+ "instantDelivery": false,
+ "goods": [],
+ "goodsInstruction": "текст",
+ "tags": [],
+ "autoDelivery": false,
+ "isActive": true,
+ "isHidden": false,
+ "moderationStatus": "PENDING",
+ "lastModeratedAt": null,
+ "visibility": "PUBLIC",
+ "images": [],
+ "viewsCount": 0,
+ "userId": 1001,
+ "gameId": 1,
+ "categoryId": 40,
+ "subCategoryId": 64,
+ "listedAt": "2026-11-25T12:11:55.017Z",
+ "nextListedAt": null,
+ "createdAt": "2026-11-25T12:11:55.017Z",
+ "updatedAt": "2026-11-25T12:11:55.017Z"
+}

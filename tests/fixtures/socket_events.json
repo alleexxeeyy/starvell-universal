@@ -1,0 +1,452 @@
+[
+ {
+  "namespace": "/chats",
+  "event": "message_created",
+  "args": [
+   {
+    "id": "00000000-0000-7000-8000-000000000027",
+    "content": "текст сообщения",
+    "type": "DEFAULT",
+    "metadata": null,
+    "isHidden": false,
+    "hasSensitiveContent": false,
+    "images": [],
+    "buttons": [],
+    "authorId": 2002,
+    "buyerId": null,
+    "sellerId": null,
+    "adminId": null,
+    "chatId": "00000000-0000-7000-8000-000000000003",
+    "visibleTo": null,
+    "replyToMessageId": null,
+    "reaction": null,
+    "reactionAuthorId": null,
+    "createdAt": "2026-11-25T12:14:29.846Z",
+    "updatedAt": "2026-11-25T12:14:29.846Z",
+    "author": {
+     "id": 2002,
+     "username": "buyer",
+     "displayName": null,
+     "roles": [],
+     "messagesHidden": false
+    },
+    "buyer": null,
+    "seller": null,
+    "admin": null,
+    "order": null,
+    "offer": null,
+    "dispute": null,
+    "replyTo": null,
+    "isChatPinned": false
+   }
+  ]
+ },
+ {
+  "namespace": "/chats",
+  "event": "chat_read",
+  "args": [
+   {
+    "readAt": "2026-11-25T12:14:32.195Z",
+    "readerUserId": 1001,
+    "chatId": "00000000-0000-7000-8000-000000000003"
+   }
+  ]
+ },
+ {
+  "namespace": "/chats",
+  "event": "message_created",
+  "args": [
+   {
+    "id": "00000000-0000-7000-8000-000000000028",
+    "content": "текст сообщения",
+    "type": "DEFAULT",
+    "metadata": null,
+    "isHidden": false,
+    "hasSensitiveContent": false,
+    "images": [],
+    "buttons": [],
+    "authorId": 1001,
+    "buyerId": null,
+    "sellerId": null,
+    "adminId": null,
+    "chatId": "00000000-0000-7000-8000-000000000003",
+    "visibleTo": null,
+    "replyToMessageId": null,
+    "reaction": null,
+    "reactionAuthorId": null,
+    "createdAt": "2026-11-25T12:14:35.596Z",
+    "updatedAt": "2026-11-25T12:14:35.596Z",
+    "author": {
+     "id": 1001,
+     "username": "seller",
+     "displayName": null,
+     "roles": [],
+     "messagesHidden": false
+    },
+    "buyer": null,
+    "seller": null,
+    "admin": null,
+    "order": null,
+    "offer": null,
+    "dispute": null,
+    "replyTo": null,
+    "isChatPinned": false
+   }
+  ]
+ },
+ {
+  "namespace": "/chats",
+  "event": "chat_read",
+  "args": [
+   {
+    "readAt": "2026-11-25T12:19:34.730Z",
+    "readerUserId": 2002,
+    "chatId": "00000000-0000-7000-8000-000000000003"
+   }
+  ]
+ },
+ {
+  "namespace": "/user-notifications",
+  "event": "sale_update",
+  "args": [
+   {
+    "orderId": "00000000-0000-7000-8000-000000000023",
+    "orderShortId": "ABCDEFGH",
+    "delta": 1
+   }
+  ]
+ },
+ {
+  "namespace": "/chats",
+  "event": "message_created",
+  "args": [
+   {
+    "id": "00000000-0000-7000-8000-000000000029",
+    "content": "",
+    "type": "NOTIFICATION",
+    "metadata": {
+     "orderId": "00000000-0000-7000-8000-000000000023",
+     "orderShortId": "ABCDEFGH",
+     "notificationType": "ORDER_PAYMENT"
+    },
+    "isHidden": false,
+    "hasSensitiveContent": false,
+    "images": [],
+    "buttons": [],
+    "authorId": null,
+    "buyerId": 2002,
+    "sellerId": null,
+    "adminId": null,
+    "chatId": "00000000-0000-7000-8000-000000000003",
+    "visibleTo": null,
+    "replyToMessageId": null,
+    "reaction": null,
+    "reactionAuthorId": null,
+    "createdAt": "2026-11-25T12:20:36.195Z",
+    "updatedAt": "2026-11-25T12:20:36.195Z",
+    "author": null,
+    "buyer": {
+     "id": 2002,
+     "username": "buyer",
+     "displayName": null
+    },
+    "seller": null,
+    "admin": null,
+    "order": {
+     "id": "00000000-0000-7000-8000-000000000023",
+     "shortId": "ABCDEFGH",
+     "quantity": 1,
+     "totalPrice": 116,
+     "refundType": null,
+     "status": "CREATED",
+     "refundedAt": null,
+     "refundReasonCode": null,
+     "orderArgs": [
+      {
+       "id": "00000000-0000-7000-8000-000000000025",
+       "value": "значение",
+       "nameRu": "Логин"
+      },
+      {
+       "id": "00000000-0000-7000-8000-000000000026",
+       "value": "значение",
+       "nameRu": "Пароль",
+       "isSensitive": true
+      }
+     ],
+     "offerDetails": {
+      "game": {
+       "id": 1,
+       "name": "Roblox",
+       "slug": "roblox"
+      },
+      "type": "LOT",
+      "images": [],
+      "category": {
+       "id": 40,
+       "name": "Донат робуксов (моментально) ",
+       "slug": "packages",
+       "availabilityUnit": "UNITS",
+       "currencyDisplayUnits": null
+      },
+      "attributes": [],
+      "subCategory": {
+       "id": 64,
+       "name": "40 робуксов"
+      },
+      "autoDelivery": false,
+      "availability": 10,
+      "deliveryTime": {
+       "to": {
+        "unit": "MINUTES",
+        "value": 5
+       },
+       "from": {
+        "unit": "MINUTES",
+        "value": 1
+       }
+      },
+      "descriptions": {
+       "rus": {
+        "description": "x"
+       }
+      },
+      "instantDelivery": false
+     }
+    },
+    "offer": null,
+    "dispute": null,
+    "replyTo": null,
+    "isChatPinned": false
+   }
+  ]
+ },
+ {
+  "namespace": "/chats",
+  "event": "message_created",
+  "args": [
+   {
+    "id": "00000000-0000-7000-8000-000000000030",
+    "content": "текст сообщения",
+    "type": "DEFAULT",
+    "metadata": {
+     "isAutoResponse": true
+    },
+    "isHidden": false,
+    "hasSensitiveContent": false,
+    "images": [],
+    "buttons": [],
+    "authorId": 1001,
+    "buyerId": null,
+    "sellerId": null,
+    "adminId": null,
+    "chatId": "00000000-0000-7000-8000-000000000003",
+    "visibleTo": null,
+    "replyToMessageId": null,
+    "reaction": null,
+    "reactionAuthorId": null,
+    "createdAt": "2026-11-25T12:20:36.241Z",
+    "updatedAt": "2026-11-25T12:20:36.195Z",
+    "author": {
+     "id": 1001,
+     "username": "seller",
+     "displayName": null,
+     "roles": [],
+     "messagesHidden": false
+    },
+    "isChatPinned": false
+   }
+  ]
+ },
+ {
+  "namespace": "/chats",
+  "event": "message_created",
+  "args": [
+   {
+    "id": "00000000-0000-7000-8000-000000000031",
+    "content": "текст сообщения",
+    "type": "DEFAULT",
+    "metadata": {
+     "isAutoResponse": true,
+     "isGoodsInstruction": true
+    },
+    "isHidden": false,
+    "hasSensitiveContent": false,
+    "images": [],
+    "buttons": [],
+    "authorId": 1001,
+    "buyerId": null,
+    "sellerId": null,
+    "adminId": null,
+    "chatId": "00000000-0000-7000-8000-000000000003",
+    "visibleTo": null,
+    "replyToMessageId": null,
+    "reaction": null,
+    "reactionAuthorId": null,
+    "createdAt": "2026-11-25T12:20:36.245Z",
+    "updatedAt": "2026-11-25T12:20:36.195Z",
+    "author": {
+     "id": 1001,
+     "username": "seller",
+     "displayName": null,
+     "roles": [],
+     "messagesHidden": false
+    },
+    "isChatPinned": false
+   }
+  ]
+ },
+ {
+  "namespace": "/chats",
+  "event": "chat_read",
+  "args": [
+   {
+    "readAt": "2026-11-25T12:20:42.899Z",
+    "readerUserId": 2002,
+    "chatId": "00000000-0000-7000-8000-000000000003"
+   }
+  ]
+ },
+ {
+  "namespace": "/chats",
+  "event": "chat_read",
+  "args": [
+   {
+    "readAt": "2026-11-25T12:21:51.805Z",
+    "readerUserId": 1001,
+    "chatId": "00000000-0000-7000-8000-000000000003"
+   }
+  ]
+ },
+ {
+  "namespace": "/chats",
+  "event": "message_created",
+  "args": [
+   {
+    "id": "00000000-0000-7000-8000-000000000032",
+    "content": "",
+    "type": "NOTIFICATION",
+    "metadata": {
+     "orderId": "00000000-0000-7000-8000-000000000023",
+     "orderShortId": "ABCDEFGH",
+     "notificationType": "ORDER_SELLER_COMPLETED"
+    },
+    "isHidden": false,
+    "hasSensitiveContent": false,
+    "images": [],
+    "buttons": [],
+    "authorId": null,
+    "buyerId": 2002,
+    "sellerId": 1001,
+    "adminId": null,
+    "chatId": "00000000-0000-7000-8000-000000000003",
+    "visibleTo": null,
+    "replyToMessageId": null,
+    "reaction": null,
+    "reactionAuthorId": null,
+    "createdAt": "2026-11-25T12:22:17.720Z",
+    "updatedAt": "2026-11-25T12:22:17.720Z",
+    "author": null,
+    "buyer": {
+     "id": 2002,
+     "username": "buyer",
+     "displayName": null
+    },
+    "seller": {
+     "id": 1001,
+     "username": "seller",
+     "displayName": null
+    },
+    "admin": null,
+    "order": {
+     "id": "00000000-0000-7000-8000-000000000023",
+     "shortId": "ABCDEFGH",
+     "quantity": 1,
+     "totalPrice": 116,
+     "refundType": null,
+     "status": "CREATED",
+     "refundedAt": null,
+     "refundReasonCode": null,
+     "orderArgs": [
+      {
+       "id": "00000000-0000-7000-8000-000000000025",
+       "value": "значение",
+       "nameRu": "Логин"
+      },
+      {
+       "id": "00000000-0000-7000-8000-000000000026",
+       "value": "значение",
+       "nameRu": "Пароль",
+       "isSensitive": true
+      }
+     ],
+     "offerDetails": {
+      "game": {
+       "id": 1,
+       "name": "Roblox",
+       "slug": "roblox"
+      },
+      "type": "LOT",
+      "images": [],
+      "category": {
+       "id": 40,
+       "name": "Донат робуксов (моментально) ",
+       "slug": "packages",
+       "availabilityUnit": "UNITS",
+       "currencyDisplayUnits": null
+      },
+      "attributes": [],
+      "subCategory": {
+       "id": 64,
+       "name": "40 робуксов"
+      },
+      "autoDelivery": false,
+      "availability": 10,
+      "deliveryTime": {
+       "to": {
+        "unit": "MINUTES",
+        "value": 5
+       },
+       "from": {
+        "unit": "MINUTES",
+        "value": 1
+       }
+      },
+      "descriptions": {
+       "rus": {
+        "description": "x"
+       }
+      },
+      "instantDelivery": false
+     }
+    },
+    "offer": null,
+    "dispute": null,
+    "replyTo": null,
+    "isChatPinned": false
+   }
+  ]
+ },
+ {
+  "namespace": "/chats",
+  "event": "chat_read",
+  "args": [
+   {
+    "readAt": "2026-11-25T12:22:18.033Z",
+    "readerUserId": 1001,
+    "chatId": "00000000-0000-7000-8000-000000000003"
+   }
+  ]
+ },
+ {
+  "namespace": "/chats",
+  "event": "chat_read",
+  "args": [
+   {
+    "readAt": "2026-11-25T12:22:18.180Z",
+    "readerUserId": 2002,
+    "chatId": "00000000-0000-7000-8000-000000000003"
+   }
+  ]
+ }
+]
