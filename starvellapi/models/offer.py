@@ -6,20 +6,20 @@ from typing import Annotated, Any
 
 from pydantic import Field
 
-from .base import StarvellModel, Tolerant, enum_or_str
+from .base import StarvellModel, Tolerant, TolerantList, enum_or_str
 from .enums import AvailabilityUnit, DeliveryTimeUnit, ModerationStatus, OfferType
 
 
 class GameRef(StarvellModel):
-    id: int | None = None
-    name: str | None = None
-    slug: str | None = None
+    id: Tolerant[int] = None
+    name: Tolerant[str] = None
+    slug: Tolerant[str] = None
 
 
 class CategoryRef(StarvellModel):
-    id: int | None = None
-    name: str | None = None
-    slug: str | None = None
+    id: Tolerant[int] = None
+    name: Tolerant[str] = None
+    slug: Tolerant[str] = None
     availability_unit: Annotated[AvailabilityUnit | str | None, enum_or_str(AvailabilityUnit)] = None
     currency_display_units: Any = None
 
@@ -29,15 +29,15 @@ class CategoryRef(StarvellModel):
 
 
 class SubCategoryRef(StarvellModel):
-    id: int | None = None
-    name: str | None = None
-    slug: str | None = None
+    id: Tolerant[int] = None
+    name: Tolerant[str] = None
+    slug: Tolerant[str] = None
 
 
 class Taxonomy(StarvellModel):
-    game: GameRef | None = None
-    category: CategoryRef | None = None
-    sub_category: SubCategoryRef | None = None
+    game: Tolerant[GameRef] = None
+    category: Tolerant[CategoryRef] = None
+    sub_category: Tolerant[SubCategoryRef] = None
 
 
 class DeliveryTimeRange(StarvellModel):
@@ -47,30 +47,30 @@ class DeliveryTimeRange(StarvellModel):
 
 class DeliveryTime(StarvellModel):
     from_: DeliveryTimeRange | None = Field(None, alias="from")
-    to: DeliveryTimeRange | None = None
+    to: Tolerant[DeliveryTimeRange] = None
 
 
 class Description(StarvellModel):
-    brief_description: str | None = None
-    description: str | None = None
+    brief_description: Tolerant[str] = None
+    description: Tolerant[str] = None
 
 
 class Descriptions(StarvellModel):
-    rus: Description | None = None
+    rus: Tolerant[Description] = None
 
 
 class OfferDetails(StarvellModel):
     type: Annotated[OfferType | str | None, enum_or_str(OfferType)] = None
-    game: GameRef | None = None
-    category: CategoryRef | None = None
-    sub_category: SubCategoryRef | None = None
-    descriptions: Descriptions | None = None
-    delivery_time: DeliveryTime | None = None
-    attributes: list[dict[str, Any]] = []
-    images: list[Any] = []
+    game: Tolerant[GameRef] = None
+    category: Tolerant[CategoryRef] = None
+    sub_category: Tolerant[SubCategoryRef] = None
+    descriptions: Tolerant[Descriptions] = None
+    delivery_time: Tolerant[DeliveryTime] = None
+    attributes: TolerantList[dict[str, Any]] = []
+    images: TolerantList[Any] = []
     availability: Tolerant[int] = None
-    auto_delivery: bool | None = None
-    instant_delivery: bool | None = None
+    auto_delivery: Tolerant[bool] = None
+    instant_delivery: Tolerant[bool] = None
 
     @property
     def title(self) -> str:
@@ -80,35 +80,35 @@ class OfferDetails(StarvellModel):
 
 
 class Offer(StarvellModel):
-    id: int | None = None
-    public_id: str | None = None
+    id: Tolerant[int] = None
+    public_id: Tolerant[str] = None
     type: Annotated[OfferType | str | None, enum_or_str(OfferType)] = None
     price: Tolerant[Decimal] = None
     availability: Tolerant[int] = None
     availability_unit: Annotated[AvailabilityUnit | str | None, enum_or_str(AvailabilityUnit)] = None
-    descriptions: Descriptions | None = None
-    taxonomy_snapshot: Taxonomy | None = None
-    delivery_time: DeliveryTime | None = None
-    attributes: list[dict[str, Any]] = []
-    post_payment_message: str | None = None
+    descriptions: Tolerant[Descriptions] = None
+    taxonomy_snapshot: Tolerant[Taxonomy] = None
+    delivery_time: Tolerant[DeliveryTime] = None
+    attributes: TolerantList[dict[str, Any]] = []
+    post_payment_message: Tolerant[str] = None
     post_payment_media: Any = None
     min_order_currency_amount: Tolerant[float] = None
     profile_position: Tolerant[int] = None
-    instant_delivery: bool | None = None
-    auto_delivery: bool | None = None
-    goods: list[str] = []
-    goods_instruction: str | None = None
-    tags: list[str] = []
-    images: list[Any] = []
-    is_active: bool | None = None
-    is_hidden: bool | None = None
+    instant_delivery: Tolerant[bool] = None
+    auto_delivery: Tolerant[bool] = None
+    goods: TolerantList[str] = []
+    goods_instruction: Tolerant[str] = None
+    tags: TolerantList[str] = []
+    images: TolerantList[Any] = []
+    is_active: Tolerant[bool] = None
+    is_hidden: Tolerant[bool] = None
     moderation_status: Annotated[ModerationStatus | str | None, enum_or_str(ModerationStatus)] = None
-    visibility: str | None = None
-    views_count: int | None = None
-    user_id: int | None = None
-    game_id: int | None = None
-    category_id: int | None = None
-    sub_category_id: int | None = None
+    visibility: Tolerant[str] = None
+    views_count: Tolerant[int] = None
+    user_id: Tolerant[int] = None
+    game_id: Tolerant[int] = None
+    category_id: Tolerant[int] = None
+    sub_category_id: Tolerant[int] = None
     listed_at: Tolerant[datetime] = None
     next_listed_at: Tolerant[datetime] = None
     last_moderated_at: Tolerant[datetime] = None

@@ -3,16 +3,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Any
 
-from .base import StarvellModel, Tolerant, enum_or_str
+from .base import StarvellModel, Tolerant, TolerantList, enum_or_str
 from .enums import OrderStatus
 from .offer import OfferDetails
 from .user import UserShort
 
 
 class OrderArg(StarvellModel):
-    id: str | None = None
-    value: str | None = None
-    name_ru: str | None = None
+    id: Tolerant[str] = None
+    value: Tolerant[str] = None
+    name_ru: Tolerant[str] = None
     is_sensitive: bool = False
 
     @property
@@ -21,26 +21,26 @@ class OrderArg(StarvellModel):
 
 
 class Order(StarvellModel):
-    id: str | None = None
-    short_id: str | None = None
+    id: Tolerant[str] = None
+    short_id: Tolerant[str] = None
     status: Annotated[OrderStatus | str | None, enum_or_str(OrderStatus)] = None
     quantity: Tolerant[int] = None
     base_price: Tolerant[float] = None
     total_price: Tolerant[float] = None
-    buyer_id: int | None = None
-    seller_id: int | None = None
-    offer_id: int | None = None
-    offer_public_id: str | None = None
-    offer_details: OfferDetails | None = None
-    order_args: list[OrderArg] = []
-    user: UserShort | None = None
-    refund_type: str | None = None
-    refund_reason_code: str | None = None
+    buyer_id: Tolerant[int] = None
+    seller_id: Tolerant[int] = None
+    offer_id: Tolerant[int] = None
+    offer_public_id: Tolerant[str] = None
+    offer_details: Tolerant[OfferDetails] = None
+    order_args: TolerantList[OrderArg] = []
+    user: Tolerant[UserShort] = None
+    refund_type: Tolerant[str] = None
+    refund_reason_code: Tolerant[str] = None
     refund_request: Any = None
     dispute: Any = None
-    delivered_goods: list[Any] = []
-    review_visible_after_refund: bool | None = None
-    requires_video_recording: bool | None = None
+    delivered_goods: TolerantList[Any] = []
+    review_visible_after_refund: Tolerant[bool] = None
+    requires_video_recording: Tolerant[bool] = None
     created_at: Tolerant[datetime] = None
     updated_at: Tolerant[datetime] = None
     paid_at: Tolerant[datetime] = None

@@ -4,7 +4,8 @@ import os
 
 import aiohttp
 
-from ..models import Chat, Message, MessageButton, MessagesPage
+from .._http import path_id
+from ..models import Chat, Message, MessageButton, MessagesPage, TolerantList
 from .base import BaseClient, drop_none
 
 
@@ -18,13 +19,13 @@ class ChatsMixin(BaseClient):
         :param with_pinned: Подмешать закреплённые чаты (поддержка, система) в начало первой страницы.
         """
         body = {"limit": limit, "offset": offset, "withPinned": with_pinned}
-        return await self._request("POST", "/api/chats/list", json=body, type_=list[Chat], idempotent=True)
+        return await self._request("POST", "/api/chats/list", json=body, type_=TolerantList[Chat], idempotent=True)
 
     async def get_pinned_chats(self) -> list[Chat]:
         """
         Получает непрочитанные чаты с системой и операторами.
         """
-        return await self._request("POST", "/api/chats/list-pinned", type_=list[Chat], idempotent=True)
+        return await self._request("POST", "/api/chats/list-pinned", type_=TolerantList[Chat], idempotent=True)
 
     async def get_chats_with_open_orders(self, limit: int = 20, offset: int = 0, role: str | None = None) -> list[Chat]:
         """
@@ -33,13 +34,13 @@ class ChatsMixin(BaseClient):
         :param role: Роль в заказе (`seller` / `buyer`), _опционально_.
         """
         body = drop_none({"limit": limit, "offset": offset, "role": role})
-        return await self._request("POST", "/api/chats/list-open-order", json=body, type_=list[Chat], idempotent=True)
+        return await self._request("POST", "/api/chats/list-open-order", json=body, type_=TolerantList[Chat], idempotent=True)
 
     async def get_chat(self, chat_id: str) -> Chat:
         """
         Получает чат по ID.
         """
-        return await self._request("GET", f"/api/chats/{chat_id}", type_=Chat)
+        return await self._request("GET", f"/api/chats/{path_id(chat_id)}", type_=Chat)
 
     async def read_chat(self, chat_id: str):
         """
@@ -97,8 +98,12 @@ class ChatsMixin(BaseClient):
             filename = os.path.basename(image)
             with open(image, "rb") as f:
                 image = f.read()
-        form = aiohttp.FormData()
-        form.add_field("image", image, filename=filename)
+
+        def form() -> aiohttp.FormData:
+            # FormData одноразовая - на каждую попытку собирается заново
+            data = aiohttp.FormData()
+            data.add_field("image", image, filename=filename)
+            return data
         result = await self._request("POST", "/api/messages/send-with-image", params={"chatId": chat_id}, data=form, idempotent=False)
         data = result.get("message", result) if isinstance(result, dict) else result
         return Message.model_validate(data) if isinstance(data, dict) else None

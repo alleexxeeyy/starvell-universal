@@ -220,6 +220,10 @@ class Router:
         """ Декоратор хендлера `KycStatusUpdatedEvent`. """
         return self.on(EventType.KYC_STATUS_UPDATED, *filters)
 
+    def connection_status(self, *filters: Filter):
+        """ Декоратор хендлера `ConnectionStatusEvent`. """
+        return self.on(EventType.CONNECTION_STATUS, *filters)
+
     def socket_event(self, *filters: Filter):
         """ Декоратор хендлера `SocketEvent`. """
         return self.on(EventType.SOCKET_EVENT, *filters)

@@ -5,6 +5,7 @@ from logging import getLogger
 from typing import Annotated, Any, Optional, TypeVar
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     BeforeValidator,
     ConfigDict,
@@ -36,18 +37,39 @@ def _report(key: tuple, text: str):
         logger.warning(text)
 
 
+def _describe(e: ValidationError) -> tuple[str, str]:
+    first = e.errors(include_url=False)[0]
+    return str(first.get("type")), ".".join(str(p) for p in first.get("loc", ())) or "-"
+
+
 def _or_none(value: Any, handler: ValidatorFunctionWrapHandler, info: ValidationInfo) -> Any:
     try:
         return handler(value)
     except ValidationError as e:
-        first = e.errors(include_url=False)[0]
-        where = ".".join(str(p) for p in first.get("loc", ())) or "-"
-        shown = repr(value) if isinstance(value, (str, int, float)) and len(str(value)) <= 64 else type(value).__name__
-        _report((info.field_name, shown, where), f"Не удалось разобрать поле {info.field_name}: {shown} ({first.get('type')} в {where}), будет None")
+        # значение в лог не пишем: в заказах бывают логины и пароли покупателей
+        kind, where = _describe(e)
+        _report((info.field_name, type(value).__name__, kind, where),
+                f"Не удалось разобрать поле {info.field_name} ({type(value).__name__}: {kind} в {where}), будет None")
         return None
 
 
+def _or_empty(value: Any, handler: ValidatorFunctionWrapHandler, info: ValidationInfo) -> Any:
+    try:
+        return handler(value)
+    except ValidationError as e:
+        kind, where = _describe(e)
+        _report((info.field_name, type(value).__name__, kind, where),
+                f"Не удалось разобрать список {info.field_name} ({type(value).__name__}: {kind} в {where}), будет пустым")
+        return []
+
+
+def _drop_broken(items: list) -> list:
+    return [i for i in items if i is not None]
+
+
 Tolerant = Annotated[Optional[T], WrapValidator(_or_none)]
+# битый элемент выпадает из списка с предупреждением, остальные разбираются
+TolerantList = Annotated[list[Annotated[T, WrapValidator(_or_none)]], AfterValidator(_drop_broken), WrapValidator(_or_empty)]
 
 
 def enum_or_str(enum: type[Enum]) -> BeforeValidator:
@@ -55,6 +77,9 @@ def enum_or_str(enum: type[Enum]) -> BeforeValidator:
     def convert(value: Any) -> Any:
         if value is None or isinstance(value, enum):
             return value
+        if not isinstance(value, (str, int)):
+            _report((enum.__name__, type(value).__name__), f"{enum.__name__}: пришёл {type(value).__name__} вместо строки, будет None")
+            return None
         try:
             return enum(value)
         except ValueError:

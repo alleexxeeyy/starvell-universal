@@ -5,6 +5,7 @@ import traceback
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal
 
+from ..errors import SourceClosedError
 from .events import BaseEvent
 from .router import Handler, Router, check_filter
 from ..realtime.source import EventSource
@@ -74,7 +75,7 @@ class Dispatcher(Router):
 
         self._source: EventSource | None = None
         self._stop: asyncio.Event | None = None
-        self.started: asyncio.Event | None = None
+        self.started = asyncio.Event()
         self._chains: dict[str | None, asyncio.Task] = {}
         self._pending: set[asyncio.Task] = set()
         self._semaphore: asyncio.Semaphore | None = None
@@ -196,9 +197,15 @@ class Dispatcher(Router):
                 previous.exception()
         if self._semaphore is None:
             await self.feed_event(event)
-            return
-        async with self._semaphore:
-            await self.feed_event(event)
+        else:
+            async with self._semaphore:
+                await self.feed_event(event)
+        self._ack(event)
+
+    def _ack(self, event: BaseEvent):
+        # подтверждаем только обработанное: что не успели - придёт снова после перезапуска
+        if self._source is not None:
+            self._source.ack(event)
 
     async def run(self, source: EventSource | None = None, **source_kwargs: Any):
         """
@@ -210,11 +217,11 @@ class Dispatcher(Router):
 
         if self.running:
             raise RuntimeError("Диспетчер уже запущен")
-        self._stop = asyncio.Event()
         self._loop = asyncio.get_running_loop()
+        self._stop = asyncio.Event()
         self._semaphore = asyncio.Semaphore(self.max_concurrency) if self.max_concurrency else None
         self._source = source or EventSource(self.client, **source_kwargs)
-        self.started = asyncio.Event()
+        self.started.clear()
         stop_wait = asyncio.ensure_future(self._stop.wait())
         get: asyncio.Future | None = None
         stopped = False
@@ -226,10 +233,14 @@ class Dispatcher(Router):
                 done, _ = await asyncio.wait({get, stop_wait}, return_when=asyncio.FIRST_COMPLETED)
                 if get not in done:
                     break
-                event = get.result()
+                try:
+                    event = get.result()
+                except SourceClosedError:
+                    break
                 get = None
                 if self.mode == "sequential":
                     await self.feed_event(event)
+                    self._ack(event)
                 else:
                     self._dispatch_parallel(event)
             stopped = True
@@ -267,5 +278,8 @@ class Dispatcher(Router):
             running = None
         if loop is None or running is loop:
             stop_event.set()
-        else:
+            return
+        try:
             loop.call_soon_threadsafe(stop_event.set)
+        except RuntimeError:
+            pass

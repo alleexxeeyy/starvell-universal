@@ -3,58 +3,58 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Any
 
-from .base import StarvellModel, Tolerant, enum_or_str
+from .base import StarvellModel, Tolerant, TolerantList, enum_or_str
 from .enums import MessageType, NotificationType
 from .order import Order
 from .user import UserShort
 
 
 class Image(StarvellModel):
-    id: str | None = None
-    width: int | None = None
-    height: int | None = None
-    extension: str | None = None
+    id: Tolerant[str] = None
+    width: Tolerant[int] = None
+    height: Tolerant[int] = None
+    extension: Tolerant[str] = None
 
 
 class MessageButton(StarvellModel):
-    text: str | None = None
-    url: str | None = None
+    text: Tolerant[str] = None
+    url: Tolerant[str] = None
 
 
 class MessageMetadata(StarvellModel):
-    is_auto: bool | None = None
-    is_auto_response: bool | None = None
-    is_goods_instruction: bool | None = None
-    order_id: str | None = None
-    order_short_id: str | None = None
+    is_auto: Tolerant[bool] = None
+    is_auto_response: Tolerant[bool] = None
+    is_goods_instruction: Tolerant[bool] = None
+    order_id: Tolerant[str] = None
+    order_short_id: Tolerant[str] = None
     notification_type: Annotated[NotificationType | str | None, enum_or_str(NotificationType)] = None
 
 
 class Message(StarvellModel):
-    id: str | None = None
-    chat_id: str | None = None
-    content: str | None = None
+    id: Tolerant[str] = None
+    chat_id: Tolerant[str] = None
+    content: Tolerant[str] = None
     type: Annotated[MessageType | str | None, enum_or_str(MessageType)] = None
-    metadata: MessageMetadata | None = None
-    images: list[Image] = []
-    buttons: list[MessageButton] = []
-    author_id: int | None = None
-    buyer_id: int | None = None
-    seller_id: int | None = None
-    admin_id: int | None = None
-    author: UserShort | None = None
-    buyer: UserShort | None = None
-    seller: UserShort | None = None
-    admin: UserShort | None = None
-    order: Order | None = None
+    metadata: Tolerant[MessageMetadata] = None
+    images: TolerantList[Image] = []
+    buttons: TolerantList[MessageButton] = []
+    author_id: Tolerant[int] = None
+    buyer_id: Tolerant[int] = None
+    seller_id: Tolerant[int] = None
+    admin_id: Tolerant[int] = None
+    author: Tolerant[UserShort] = None
+    buyer: Tolerant[UserShort] = None
+    seller: Tolerant[UserShort] = None
+    admin: Tolerant[UserShort] = None
+    order: Tolerant[Order] = None
     offer: Any = None
     dispute: Any = None
-    reply_to_message_id: str | None = None
-    reply_to: Message | None = None
-    visible_to: int | None = None
-    is_hidden: bool | None = None
-    has_sensitive_content: bool | None = None
-    is_chat_pinned: bool | None = None
+    reply_to_message_id: Tolerant[str] = None
+    reply_to: Tolerant[Message] = None
+    visible_to: Tolerant[int] = None
+    is_hidden: Tolerant[bool] = None
+    has_sensitive_content: Tolerant[bool] = None
+    is_chat_pinned: Tolerant[bool] = None
     created_at: Tolerant[datetime] = None
     updated_at: Tolerant[datetime] = None
 
@@ -82,22 +82,22 @@ class Message(StarvellModel):
 
 
 class MessagesPage(StarvellModel):
-    items: list[Message] = []
-    next_cursor: str | None = None
-    prev_cursor: str | None = None
-    has_more_before: bool | None = None
-    has_more_after: bool | None = None
+    items: TolerantList[Message] = []
+    next_cursor: Tolerant[str] = None
+    prev_cursor: Tolerant[str] = None
+    has_more_before: Tolerant[bool] = None
+    has_more_after: Tolerant[bool] = None
 
 
 class Chat(StarvellModel):
-    id: str | None = None
-    participants: list[UserShort] = []
-    last_message: Message | None = None
-    unread_message_count: int | None = None
-    has_active_refund_request: bool | None = None
-    is_blacklisted: bool | None = None
-    is_me_blacklisted: bool | None = None
-    is_pinned: bool | None = None
+    id: Tolerant[str] = None
+    participants: TolerantList[UserShort] = []
+    last_message: Tolerant[Message] = None
+    unread_message_count: Tolerant[int] = None
+    has_active_refund_request: Tolerant[bool] = None
+    is_blacklisted: Tolerant[bool] = None
+    is_me_blacklisted: Tolerant[bool] = None
+    is_pinned: Tolerant[bool] = None
     viewed_offer: Any = None
     viewed_offer_by_me: Any = None
 
@@ -113,19 +113,19 @@ class Chat(StarvellModel):
 
 
 class ChatRead(StarvellModel):
-    chat_id: str | None = None
-    reader_user_id: int | None = None
+    chat_id: Tolerant[str] = None
+    reader_user_id: Tolerant[int] = None
     read_at: Tolerant[datetime] = None
 
 
 class OrderNotice(StarvellModel):
-    order_id: str | None = None
-    order_short_id: str | None = None
-    delta: int | None = None
+    order_id: Tolerant[str] = None
+    order_short_id: Tolerant[str] = None
+    delta: Tolerant[int] = None
 
 
 class BalanceUpdate(StarvellModel):
-    user_id: int | None = None
+    user_id: Tolerant[int] = None
     rub_balance: Tolerant[float] = None
     withdrawable_rub_balance: Tolerant[float] = None
 

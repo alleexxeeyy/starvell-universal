@@ -7,6 +7,7 @@ import pytest
 
 from starvellapi import (
     Client,
+    ConnectionStatusEvent,
     EventSource,
     MemoryState,
     NewMessageEvent,
@@ -16,7 +17,7 @@ from starvellapi import (
 )
 from starvellapi._transport import TransportError
 
-from .conftest import connected_ws, socket_frame
+from .conftest import connected_ws, json_response, socket_frame
 
 ME, BUYER = 1001, 2002
 CHAT = "00000000-0000-7000-8000-00000000c001"
@@ -59,18 +60,27 @@ def make_source(client, state=None, **kw) -> EventSource:
     return src
 
 
-async def collect(src: EventSource, n: int, timeout: float = 2.0) -> list:
+async def collect(src: EventSource, n: int, timeout: float = 2.0, ack: bool = True) -> list:
     events = []
     try:
         while len(events) < n:
-            events.append(await asyncio.wait_for(src.get(), timeout))
+            event = await asyncio.wait_for(src.get(), timeout)
+            if isinstance(event, ConnectionStatusEvent):
+                continue
+            if ack:
+                src.ack(event)
+            events.append(event)
     except asyncio.TimeoutError:
         pass
     return events
 
 
-async def quiet(src: EventSource, timeout: float = 0.3) -> list:
-    return await collect(src, 100, timeout)
+async def quiet(src: EventSource, timeout: float = 0.3, ack: bool = True) -> list:
+    return await collect(src, 100, timeout, ack)
+
+
+def state(**kw) -> MemoryState:
+    return MemoryState({"initialized": True, "watermark": "2026-11-25T12:00:00+00:00", "seen": [], "chats": {}, "orders": {}, **kw})
 
 
 async def test_payment_via_socket(client, transport, fast_realtime):
@@ -182,11 +192,7 @@ async def test_first_run_does_not_replay_old_orders(client, transport, fast_real
 
 
 async def test_restart_catch_up_skips_orders_closed_while_offline(client, transport, fast_realtime):
-    state = MemoryState({
-        "watermark": "2026-11-25T12:00:00+00:00",
-        "seen": [], "chats": {},
-        "orders": {"known": {"status": "CREATED", "events": ["NEW_ORDER"]}},
-    })
+    st = state(orders={"known": {"status": "CREATED", "events": ["NEW_ORDER"]}})
     transport.add("POST", "/api/orders/list", [
         order("closed", "COMPLETED", sort_at="2026-11-25T12:10:00.000Z"),
         order("done-by-hand", "CREATED", sort_at="2026-11-25T12:11:00.000Z", sellerCompletedAt="2026-11-25T12:12:00.000Z"),
@@ -194,27 +200,29 @@ async def test_restart_catch_up_skips_orders_closed_while_offline(client, transp
         order("known", "COMPLETED", sort_at="2026-11-25T11:00:00.000Z"),
     ])
     transport.add("POST", "/api/chats/list", [chat(message("m1", created="2026-11-25T11:00:00.000Z"))])
+    transport.add("POST", "/api/messages/list-v2", {"items": [message("m1", created="2026-11-25T11:00:00.000Z")]})
     transport.add("GET", "/api/orders/closed", order("closed", "COMPLETED"))
     transport.add("GET", "/api/orders/done-by-hand", order("done-by-hand", sellerCompletedAt="2026-11-25T12:12:00.000Z"))
     transport.add("GET", "/api/orders/fresh", order("fresh"))
     transport.add("GET", "/api/orders/known", order("known", "COMPLETED"))
-    src = make_source(client, state=state, use_socket=False)
+    src = make_source(client, state=st, use_socket=False)
     await src.start()
     events = await quiet(src, 0.5)
     await src.close()
 
     new_orders = [e.order.id for e in events if isinstance(e, NewOrderEvent)]
     assert new_orders == ["fresh"]
+    assert all(e.catch_up for e in events if isinstance(e, NewOrderEvent))
     assert [e.order.id for e in events if isinstance(e, OrderCompletedEvent)] == ["known"]
-    assert state.state["orders"]["closed"]["events"] == ["NEW_ORDER"]
+    assert "closed" not in st.state["orders"]
+    assert st.state["orders"]["done-by-hand"]["events"] == ["NEW_ORDER"]
 
 
 async def test_restart_does_not_repeat_emitted_order(client, transport, fast_realtime):
-    state = MemoryState({"watermark": "2026-11-25T12:00:00+00:00", "seen": [], "chats": {},
-                         "orders": {"o1": {"status": "CREATED", "events": ["NEW_ORDER"]}}})
+    st = state(orders={"o1": {"status": "CREATED", "events": ["NEW_ORDER"]}})
     transport.add("POST", "/api/orders/list", [order("o1", sort_at="2026-11-25T12:15:00.000Z")])
     transport.add("POST", "/api/chats/list", [])
-    src = make_source(client, state=state, use_socket=False)
+    src = make_source(client, state=st, use_socket=False)
     await src.start()
     events = await quiet(src, 0.4)
     await src.close()
@@ -222,7 +230,7 @@ async def test_restart_does_not_repeat_emitted_order(client, transport, fast_rea
 
 
 async def test_polling_when_socket_unavailable(client, transport, fast_realtime):
-    state = MemoryState({"watermark": "2026-11-25T12:00:00+00:00", "seen": ["m-old"], "chats": {}, "orders": {}})
+    st = state(seen=["m-old"])
     transport.add("POST", "/api/orders/list", [])
     transport.add("POST", "/api/chats/list", [chat(message("m-new", "есть кто?", created="2026-11-25T12:30:00.000Z"))])
     transport.add("POST", "/api/messages/list-v2", {"items": [
@@ -230,7 +238,7 @@ async def test_polling_when_socket_unavailable(client, transport, fast_realtime)
         message("m-old", "старое", created="2026-11-25T11:00:00.000Z"),
     ]})
     transport.sockets.append(TransportError("сокет отклонён сервером, код 403", sent=True))
-    src = make_source(client, state=state)
+    src = make_source(client, state=st)
     src.socket_retry_interval = 60
     await src.start()
     events = await collect(src, 1)
@@ -242,14 +250,14 @@ async def test_polling_when_socket_unavailable(client, transport, fast_realtime)
 
 
 async def test_reconnect_catches_up_missed_messages(client, transport, fast_realtime):
-    state = MemoryState({"watermark": "2026-11-25T12:00:00+00:00", "seen": [], "chats": {}, "orders": {}})
+    st = state()
     transport.add("POST", "/api/orders/list", [])
     transport.add("POST", "/api/chats/list", [],
                   [chat(message("m-missed", "пока сокет лежал", created="2026-11-25T12:31:00.000Z"))])
     transport.add("POST", "/api/messages/list-v2", {"items": [message("m-missed", "пока сокет лежал", created="2026-11-25T12:31:00.000Z")]})
     first, second = connected_ws(), connected_ws()
     transport.sockets.extend([first, second])
-    src = make_source(client, state=state)
+    src = make_source(client, state=st)
     src.max_socket_failures = 10
     await src.start()
     await asyncio.sleep(0.05)
@@ -288,3 +296,140 @@ async def test_unpaid_reminder_is_not_status_change(client, transport, fast_real
     events = await quiet(src)
     await src.close()
     assert [type(e).__name__ for e in events] == ["NewMessageEvent"]
+
+
+async def test_unacked_order_comes_again_after_restart(client, transport, fast_realtime):
+    st = state()
+    transport.add("POST", "/api/orders/list", [], [order("o1", sort_at="2026-11-25T12:30:00.000Z")])
+    transport.add("POST", "/api/chats/list", [])
+    transport.add("GET", "/api/orders/o1", order("o1"))
+    ws = connected_ws()
+    transport.sockets.append(ws)
+    src = make_source(client, state=st)
+    await src.start()
+    ws.push(socket_frame("/chats", "message_created", payment("m1", "o1")))
+    events = await collect(src, 1, ack=False)
+    assert isinstance(events[0], NewOrderEvent)
+    await src.close()
+    assert "o1" not in st.state["orders"] or "NEW_ORDER" not in st.state["orders"]["o1"]["events"]
+
+    again = make_source(Client(session="s", transport=transport), state=st, use_socket=False)
+    await again.start()
+    events = [e for e in await quiet(again, 0.5) if isinstance(e, NewOrderEvent)]
+    await again.close()
+    assert [e.order.id for e in events] == ["o1"] and events[0].catch_up
+
+
+async def test_acked_order_saved_immediately(client, transport, fast_realtime):
+    st = state()
+    transport.add("POST", "/api/orders/list", [])
+    transport.add("POST", "/api/chats/list", [])
+    transport.add("GET", "/api/orders/o1", order("o1"))
+    ws = connected_ws()
+    transport.sockets.append(ws)
+    src = make_source(client, state=st)
+    src.save_interval = 3600
+    await src.start()
+    ws.push(socket_frame("/chats", "message_created", payment("m1", "o1")))
+    await collect(src, 1)
+    assert st.state["orders"]["o1"]["events"] == ["NEW_ORDER"]
+    await src.close()
+
+
+async def test_failed_first_run_does_not_flood_later(client, transport, fast_realtime):
+    st = MemoryState()
+    transport.add("POST", "/api/orders/list", TransportError("нет сети", sent=False))
+    transport.add("POST", "/api/chats/list", [])
+    src = make_source(client, state=st, use_socket=False)
+    src.order_fetch_retries = 1
+    await src.start()
+    await asyncio.sleep(0.2)
+    await src.close()
+    assert st.state == {}
+
+    transport.routes[("POST", "/api/orders/list")] = [[order("old1"), order("old2")]]
+    again = make_source(Client(session="s", transport=transport), state=st, use_socket=False)
+    await again.start()
+    events = await quiet(again, 0.4)
+    await again.close()
+    assert not [e for e in events if isinstance(e, NewOrderEvent)]
+
+
+async def test_broken_order_does_not_swallow_message(client, transport, fast_realtime):
+    transport.add("POST", "/api/orders/list", [])
+    transport.add("POST", "/api/chats/list", [])
+    transport.add("GET", "/api/orders/o1", json_response({"success": False, "message": "ошибка"}, 500))
+    ws = connected_ws()
+    transport.sockets.append(ws)
+    src = make_source(client)
+    src.order_fetch_retries = 1
+    src.order_retry_delays = ()
+    await src.start()
+    ws.push(socket_frame("/chats", "message_created", payment("m1", "o1")))
+    events = await quiet(src)
+    await src.close()
+    assert [type(e).__name__ for e in events] == ["NewMessageEvent"]
+
+
+async def test_own_purchase_is_not_a_sale(client, transport, fast_realtime):
+    transport.add("POST", "/api/orders/list", [])
+    transport.add("POST", "/api/chats/list", [])
+    transport.add("GET", "/api/orders/p1", {**order("p1"), "sellerId": 777, "buyerId": ME})
+    ws = connected_ws()
+    transport.sockets.append(ws)
+    src = make_source(client)
+    await src.start()
+    ws.push(socket_frame("/chats", "message_created", payment("m1", "p1")))
+    events = await quiet(src)
+    await src.close()
+    assert not [e for e in events if isinstance(e, NewOrderEvent)]
+
+
+async def test_payment_found_by_status_change_gives_new_order(client, transport, fast_realtime):
+    st = state(orders={"o9": {"status": "PRE_CREATED", "events": []}})
+    transport.add("POST", "/api/orders/list", [order("o9", "CREATED", sort_at="2026-11-25T12:40:00.000Z")])
+    transport.add("POST", "/api/chats/list", [chat(message("m-last", created="2026-11-25T12:41:00.000Z"))])
+    transport.add("POST", "/api/messages/list-v2", {"items": []})
+    transport.add("GET", "/api/orders/o9", order("o9", "CREATED"))
+    src = make_source(client, state=st, use_socket=False)
+    await src.start()
+    events = await quiet(src, 0.5)
+    await src.close()
+    new = [e for e in events if isinstance(e, NewOrderEvent)]
+    assert [e.order.id for e in new] == ["o9"] and new[0].chat_id == CHAT
+
+
+async def test_catch_up_uses_after_id(client, transport, fast_realtime):
+    st = state(chats={CHAT: "m1"}, seen=["m1"])
+    calls = []
+
+    def messages(body):
+        calls.append(body)
+        return {"items": [message("m3", "третье", created="2026-11-25T12:33:00.000Z"),
+                          message("m2", "второе", created="2026-11-25T12:32:00.000Z")]}
+    transport.add("POST", "/api/orders/list", [])
+    transport.add("POST", "/api/chats/list", [chat(message("m3", "третье", created="2026-11-25T12:33:00.000Z"))])
+    transport.add("POST", "/api/messages/list-v2", messages)
+    src = make_source(client, state=st, use_socket=False)
+    await src.start()
+    events = await quiet(src, 0.5)
+    await src.close()
+    assert [e.message.id for e in events] == ["m2", "m3"]
+    assert calls[0]["afterId"] == "m1"
+
+
+async def test_get_after_close_stops_iteration(client, transport, fast_realtime):
+    transport.add("POST", "/api/orders/list", [])
+    transport.add("POST", "/api/chats/list", [])
+    src = make_source(client, use_socket=False)
+    await src.start()
+    waiter = asyncio.ensure_future(src.__anext__())
+    await asyncio.sleep(0.05)
+    await src.close()
+    while True:
+        try:
+            event = await asyncio.wait_for(waiter, 1)
+        except StopAsyncIteration:
+            break
+        assert isinstance(event, ConnectionStatusEvent)
+        waiter = asyncio.ensure_future(src.__anext__())

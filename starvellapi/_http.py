@@ -5,8 +5,9 @@ import random
 import time
 from logging import getLogger
 from typing import Any
+from urllib.parse import quote
 
-from ._limits import RateLimiter
+from ._limits import RateLimiter, group_of
 from ._transport import AiohttpTransport, Response, Transport, TransportError
 from .errors import (
     APIError,
@@ -39,13 +40,18 @@ _now = time.monotonic
 
 def parse_session(value: str) -> str:
     value = (value or "").strip()
-    if "=" not in value:
+    if "session=" not in value and ";" not in value:
         return value
     for part in value.split(";"):
         key, _, val = part.strip().partition("=")
         if key == "session":
             return val.strip()
     return ""
+
+
+def path_id(value: Any) -> str:
+    # id из данных покупателя не должен менять путь запроса
+    return quote(str(value), safe="")
 
 
 class Http:
@@ -58,7 +64,8 @@ class Http:
         transport: Transport | None = None,
         limiter: RateLimiter | None = None,
         retries: int = 3,
-        rate_limit_retries: int = 5
+        rate_limit_retries: int = 5,
+        max_wait: float = 90
     ):
         self.session = parse_session(session)
         if not self.session:
@@ -68,9 +75,11 @@ class Http:
         self.timeout = timeout
         self.transport: Transport = transport or AiohttpTransport(proxy=proxy, timeout=timeout)
         self.limiter = limiter or RateLimiter()
-        self.retries = retries
-        self.rate_limit_retries = rate_limit_retries
-        self._pause_until = 0.0
+        self.retries = max(1, retries)
+        self.rate_limit_retries = max(1, rate_limit_retries)
+        # сколько максимум ждать на лимитах один запрос: дальше RateLimitError, а не минуты тишины
+        self.max_wait = max_wait
+        self._pause_until: dict[str, float] = {}
 
     @property
     def headers(self) -> dict[str, str]:
@@ -87,20 +96,17 @@ class Http:
     def socket_headers(self) -> dict[str, str]:
         return {"cookie": f"session={self.session}", "origin": BASE_URL, "user-agent": self.user_agent}
 
-    async def _wait_pause(self):
-        delay = self._pause_until - _now()
-        if delay > 0:
-            await _sleep(delay)
-
-    async def _send(self, method: str, url: str, idempotent: bool, **kwargs) -> Response:
+    async def _send(self, method: str, url: str, idempotent: bool, data: Any, **kwargs) -> Response:
         error = ""
         for attempt in range(self.retries):
             try:
-                return await self.transport.request(method, url, headers=self.headers, **kwargs)
+                # одноразовые тела (multipart) собираются заново на каждую попытку
+                body = data() if callable(data) else data
+                return await self.transport.request(method, url, headers=self.headers, data=body, **kwargs)
             except TransportError as e:
                 error = e.error
                 if e.sent and not idempotent:
-                    raise NetworkError(url, error) from e
+                    raise NetworkError(url, error, maybe_delivered=True) from e
                 logger.debug(f"{method} {url}: {error}, попытка {attempt + 1}/{self.retries}")
                 if attempt < self.retries - 1:
                     await _sleep(min(2 ** attempt, 5))
@@ -116,17 +122,25 @@ class Http:
         data: Any = None,
         idempotent: bool | None = None
     ) -> Any:
-        url = path if path.startswith("http") else f"{BASE_URL}{path}"
+        if not path.startswith("/"):
+            raise ValueError("Путь запроса должен начинаться с / - на чужой хост сессия не отправляется")
+        url = f"{BASE_URL}{path}"
+        group = group_of(path)
         if idempotent is None:
             idempotent = method == "GET"
         if method != "GET" and json is None and data is None:
             # Starvell отклоняет пустое тело при Content-Type: application/json
             json = {}
 
+        deadline = _now() + self.max_wait
         for attempt in range(self.rate_limit_retries):
-            await self._wait_pause()
+            pause = self._pause_until.get(group, 0) - _now()
+            if pause > 0:
+                if _now() + pause > deadline:
+                    raise RateLimitError(url, 429, "Starvell ограничил запросы, попробуйте позже", data={"retryAfterSeconds": pause})
+                await _sleep(pause)
             await self.limiter.acquire(path)
-            resp = await self._send(method, url, idempotent, params=params, json=json, data=data)
+            resp = await self._send(method, url, idempotent, data, params=params, json=json)
 
             if resp.status == 429:
                 body = _safe_json(resp)
@@ -134,31 +148,35 @@ class Http:
                     # кулдаун (например, поднятие лотов) - это ответ «рано», а не перегрузка, повторять нельзя
                     raise _api_error(url, resp, body)
                 delay = _retry_delay(resp, attempt, body)
-                self._pause_until = max(self._pause_until, _now() + delay)
-                logger.debug(f"{url}: 429, следующая попытка через {delay:.1f} сек.")
-                if attempt < self.rate_limit_retries - 1:
+                self._pause_until[group] = max(self._pause_until.get(group, 0), _now() + delay)
+                if attempt < self.rate_limit_retries - 1 and _now() + delay <= deadline:
+                    logger.debug(f"{url}: 429, следующая попытка через {delay:.1f} сек.")
                     continue
                 raise RateLimitError(url, 429, "Слишком много запросов к Starvell", data={"retryAfterSeconds": delay})
 
             if resp.status in RETRY_STATUSES and idempotent and attempt < self.rate_limit_retries - 1:
                 delay = _retry_delay(resp, attempt)
-                logger.debug(f"{url}: {resp.status}, следующая попытка через {delay:.1f} сек.")
-                await _sleep(delay)
-                continue
-            return self._handle(url, resp)
+                if _now() + delay <= deadline:
+                    logger.debug(f"{url}: {resp.status}, следующая попытка через {delay:.1f} сек.")
+                    await _sleep(delay)
+                    continue
+            return self._handle(url, resp, idempotent)
 
         raise RateLimitError(url, 429, "Слишком много запросов к Starvell")
 
-    def _handle(self, url: str, resp: Response) -> Any:
+    def _handle(self, url: str, resp: Response, idempotent: bool) -> Any:
         if not resp.is_json:
-            # QRATOR стоит в server у всех ответов, поэтому защиту узнаём по HTML вместо JSON на 401/403
-            if resp.status in (401, 403):
+            # QRATOR стоит в server у всех ответов, поэтому защиту узнаём по HTML вместо JSON
+            if resp.status in (401, 403) or 200 <= resp.status < 300 and "html" in resp.headers.get("content-type", ""):
                 raise BotCheckError(url, resp.status)
             if 200 <= resp.status < 300:
                 return resp.text or None
-            raise HTTPError(url, resp.status, resp.text)
+            raise HTTPError(url, resp.status, resp.text, maybe_delivered=not idempotent and resp.status >= 500)
 
-        body = _safe_json(resp)
+        try:
+            body = resp.json()
+        except ValueError:
+            raise HTTPError(url, resp.status, resp.text, maybe_delivered=not idempotent) from None
         if 200 <= resp.status < 300:
             return body
         raise _api_error(url, resp, body)
@@ -181,6 +199,10 @@ def _error_code(body: Any) -> str | None:
     return None
 
 
+def _is_cooldown(code: str | None) -> bool:
+    return bool(code) and (code in COOLDOWN_CODES or code.endswith("_COOLDOWN"))
+
+
 def _api_error(url: str, resp: Response, body: Any) -> APIError:
     message = body.get("message") if isinstance(body, dict) else None
     if isinstance(message, list):
@@ -197,10 +219,6 @@ def _api_error(url: str, resp: Response, body: Any) -> APIError:
     if resp.status == 429:
         return RateLimitError(url, resp.status, message, code, data)
     return APIError(url, resp.status, message, code, data)
-
-
-def _is_cooldown(code: str | None) -> bool:
-    return bool(code) and (code in COOLDOWN_CODES or code.endswith("_COOLDOWN"))
 
 
 def _retry_delay(resp: Response, attempt: int, body: Any = None) -> float:

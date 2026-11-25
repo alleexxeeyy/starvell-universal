@@ -8,9 +8,11 @@ class StarvellError(Exception):
 
 
 class NetworkError(StarvellError):
-    def __init__(self, url: str, error: str):
+    def __init__(self, url: str, error: str, maybe_delivered: bool = False):
         self.url = url
         self.error = error
+        # True - запрос мог дойти до сервера (таймаут после отправки): изменяющий вызов нельзя слепо повторять
+        self.maybe_delivered = maybe_delivered
         super().__init__(f"Не удалось отправить запрос к {url}: {error}")
 
 
@@ -25,10 +27,11 @@ class BotCheckError(StarvellError):
 
 
 class HTTPError(StarvellError):
-    def __init__(self, url: str, status_code: int, text: str):
+    def __init__(self, url: str, status_code: int, text: str, maybe_delivered: bool = False):
         self.url = url
         self.status_code = status_code
         self.text = text
+        self.maybe_delivered = maybe_delivered
         super().__init__(f"Ошибка запроса к {url}, код ответа {status_code}: {text[:500]}")
 
 
@@ -39,6 +42,7 @@ class APIError(StarvellError):
         self.message = message
         self.code = code
         self.data = data or {}
+        self.maybe_delivered = status_code >= 500
         super().__init__(f"{message} ({code})" if code else message)
 
     @property
@@ -62,3 +66,8 @@ class RateLimitError(APIError):
 
 class CooldownError(APIError):
     pass
+
+
+class SourceClosedError(StarvellError):
+    def __init__(self):
+        super().__init__("Источник событий закрыт")

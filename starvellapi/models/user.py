@@ -3,22 +3,22 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated
 
-from .base import StarvellModel, Tolerant, enum_or_str
+from .base import StarvellModel, Tolerant, TolerantList, enum_or_str
 from .enums import KycStatus
 
 
 class UserShort(StarvellModel):
-    id: int | None = None
-    public_id: str | None = None
-    username: str | None = None
-    display_name: str | None = None
-    avatar: str | None = None
-    roles: list[str] = []
-    is_online: bool | None = None
-    is_banned: bool | None = None
-    is_operator: bool | None = None
-    messages_hidden: bool | None = None
-    active_frame_code: str | None = None
+    id: Tolerant[int] = None
+    public_id: Tolerant[str] = None
+    username: Tolerant[str] = None
+    display_name: Tolerant[str] = None
+    avatar: Tolerant[str] = None
+    roles: TolerantList[str] = []
+    is_online: Tolerant[bool] = None
+    is_banned: Tolerant[bool] = None
+    is_operator: Tolerant[bool] = None
+    messages_hidden: Tolerant[bool] = None
+    active_frame_code: Tolerant[str] = None
     created_at: Tolerant[datetime] = None
     last_online_at: Tolerant[datetime] = None
     last_read_at: Tolerant[datetime] = None
@@ -29,18 +29,18 @@ class UserShort(StarvellModel):
 
 
 class AccountUser(UserShort):
-    email: str | None = None
-    description: str | None = None
-    banner: str | None = None
-    is_selling_enabled: bool | None = None
+    email: Tolerant[str] = None
+    description: Tolerant[str] = None
+    banner: Tolerant[str] = None
+    is_selling_enabled: Tolerant[bool] = None
     kyc_status: Annotated[KycStatus | str | None, enum_or_str(KycStatus)] = None
-    kyc_failure_reason: str | None = None
+    kyc_failure_reason: Tolerant[str] = None
     rating: Tolerant[float] = None
-    reviews_count: int | None = None
-    is_phone_linked: bool | None = None
-    has_password: bool | None = None
-    is_telegram_linked: bool | None = None
-    is_two_factor_enabled: bool | None = None
+    reviews_count: Tolerant[int] = None
+    is_phone_linked: Tolerant[bool] = None
+    has_password: Tolerant[bool] = None
+    is_telegram_linked: Tolerant[bool] = None
+    is_two_factor_enabled: Tolerant[bool] = None
 
 
 class Balance(StarvellModel):
@@ -52,9 +52,9 @@ class Balance(StarvellModel):
 
 
 class OrderCounts(StarvellModel):
-    purchase_orders_count: int | None = None
-    sales_orders_count: int | None = None
-    pending_payment_orders_count: int | None = None
+    purchase_orders_count: Tolerant[int] = None
+    sales_orders_count: Tolerant[int] = None
+    pending_payment_orders_count: Tolerant[int] = None
 
 
 class InsuranceDepositSummary(StarvellModel):
@@ -65,30 +65,30 @@ class InsuranceDepositSummary(StarvellModel):
 
 
 class Rank(StarvellModel):
-    code: str | None = None
-    name: str | None = None
+    code: Tolerant[str] = None
+    name: Tolerant[str] = None
 
 
 class RankLevel(StarvellModel):
-    level: int | None = None
-    rank: Rank | None = None
+    level: Tolerant[int] = None
+    rank: Tolerant[Rank] = None
 
 
 class Profile(StarvellModel):
-    user: AccountUser | None = None
-    partner_id: str | None = None
-    is_partner_banned: bool | None = None
-    is_seller: bool | None = None
-    is_imitated: bool | None = None
-    balance: Balance | None = None
-    order_counts_by_type: OrderCounts | None = None
+    user: Tolerant[AccountUser] = None
+    partner_id: Tolerant[str] = None
+    is_partner_banned: Tolerant[bool] = None
+    is_seller: Tolerant[bool] = None
+    is_imitated: Tolerant[bool] = None
+    balance: Tolerant[Balance] = None
+    order_counts_by_type: Tolerant[OrderCounts] = None
     insurance_deposit_amount: Tolerant[float] = None
     insurance_deposit_available_amount: Tolerant[float] = None
-    insurance_deposit_summary: InsuranceDepositSummary | None = None
-    rank_level: RankLevel | None = None
-    unread_chat_ids: list[str] = []
-    unread_ticket_ids: list[str] = []
-    has_at_least_one_completed_order_as_seller: bool | None = None
+    insurance_deposit_summary: Tolerant[InsuranceDepositSummary] = None
+    rank_level: Tolerant[RankLevel] = None
+    unread_chat_ids: TolerantList[str] = []
+    unread_ticket_ids: TolerantList[str] = []
+    has_at_least_one_completed_order_as_seller: Tolerant[bool] = None
 
     @property
     def id(self) -> int | None:

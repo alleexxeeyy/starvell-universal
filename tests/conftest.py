@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from starvellapi import _http, _limits  # noqa: E402
 from starvellapi._transport import Response, TransportError, WebSocketClosed  # noqa: E402
-from starvellapi.realtime import engineio, source  # noqa: E402
+from starvellapi.realtime import source  # noqa: E402
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 
@@ -121,7 +121,6 @@ def fast_realtime(monkeypatch):
     async def no_sleep(delay):
         await asyncio.sleep(0)
     monkeypatch.setattr(source, "_sleep", no_sleep)
-    monkeypatch.setattr(engineio, "_sleep", no_sleep)
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-from .base import StarvellModel, StrEnum, Tolerant
+from .base import StarvellModel, StrEnum, Tolerant, TolerantList
 from .chat import BalanceUpdate, Chat, ChatRead, Image, Message, MessageButton, MessageMetadata, MessagesPage, OrderNotice
 from .enums import (
     AvailabilityUnit,

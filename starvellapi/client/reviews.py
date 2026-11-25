@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .._http import path_id
 from ..models import Review, ReviewResponse
 from .base import BaseClient, drop_none
 
@@ -53,26 +54,30 @@ class ReviewsMixin(BaseClient):
         """
         Изменяет свой ответ на отзыв.
         """
-        result = await self._request("POST", f"/api/review-responses/{response_id}/update", json={"content": content}, idempotent=True)
+        result = await self._request("POST", f"/api/review-responses/{path_id(response_id)}/update", json={"content": content}, idempotent=True)
         return self._response(result)
 
     async def delete_review_response(self, response_id: str):
         """
         Удаляет свой ответ на отзыв.
         """
-        await self._request("POST", f"/api/review-responses/{response_id}/delete", idempotent=True)
+        await self._request("POST", f"/api/review-responses/{path_id(response_id)}/delete", idempotent=True)
 
     async def get_review_response(self, response_id: str) -> ReviewResponse | None:
         """
         Получает ответ на отзыв по ID.
         """
-        return self._response(await self._request("GET", f"/api/review-responses/{response_id}"))
+        return self._response(await self._request("GET", f"/api/review-responses/{path_id(response_id)}"))
 
     @staticmethod
     def _reviews(result: Any) -> list[Review]:
         # формат ответа списка отзывов ещё не снят с живого аккаунта: принимаем и массив, и объект с items
         items = result.get("items", result.get("reviews", [])) if isinstance(result, dict) else result or []
-        return [Review.model_validate(item) for item in items if isinstance(item, dict)]
+        reviews = []
+        for item in items:
+            try: reviews.append(Review.model_validate(item))
+            except Exception: continue
+        return reviews
 
     @staticmethod
     def _response(result: Any) -> ReviewResponse | None:

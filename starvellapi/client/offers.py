@@ -3,8 +3,9 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from .._http import path_id
 from ..errors import CooldownError
-from ..models import Offer
+from ..models import Offer, TolerantList
 from .base import BaseClient, drop_none
 
 
@@ -18,13 +19,13 @@ class OffersMixin(BaseClient):
         Получает свои лоты в категории. Без категории Starvell список не отдаёт.
         """
         body = drop_none({"categoryId": category_id, "limit": limit, "offset": offset, "query": query})
-        return await self._request("POST", "/api/offers/list-my", json=body, type_=list[Offer], idempotent=True)
+        return await self._request("POST", "/api/offers/list-my", json=body, type_=TolerantList[Offer], idempotent=True)
 
     async def get_offer(self, public_id: str) -> Offer:
         """
         Получает лот по publicId (UUID из ссылки). Чужому пользователю товары и инструкция не видны.
         """
-        return await self._request("GET", f"/api/offers/{public_id}", type_=Offer)
+        return await self._request("GET", f"/api/offers/{path_id(public_id)}", type_=Offer)
 
     async def partial_update_offer(
         self,
@@ -45,14 +46,21 @@ class OffersMixin(BaseClient):
         })
         if not body:
             raise ValueError("Не передано ни одного поля для изменения")
-        await self._request("POST", f"/api/offers/{public_id}/partial-update", json=body, idempotent=True)
+        await self._request("POST", f"/api/offers/{path_id(public_id)}/partial-update", json=body, idempotent=True)
 
-    async def update_offer(self, offer: Offer, **changes: Any):
+    async def update_offer(self, offer: Offer | str, **changes: Any):
         """
-        Полностью сохраняет лот: берёт текущие данные `offer` и применяет `changes`
-        (`price`, `availability`, `description`, `brief_description`, `instant_delivery`, `auto_delivery`, `is_active`,
-        `goods`, `goods_instruction`, `post_payment_message`, `tags`, `min_order_currency_amount`, `reason`).
+        Полностью сохраняет свой лот: перечитывает его (чтобы не вернуть на склад уже проданные товары)
+        и применяет `changes` (`price`, `availability`, `description`, `brief_description`, `instant_delivery`,
+        `auto_delivery`, `is_active`, `goods`, `goods_instruction`, `post_payment_message`, `tags`,
+        `min_order_currency_amount`, `reason`). Для цены, количества и активности лучше `partial_update_offer`.
+
+        :param offer: Лот или его publicId.
         """
+        public_id = offer if isinstance(offer, str) else offer.public_id
+        offer = await self.get_offer(public_id)
+        if offer.user_id is not None and offer.user_id != await self._me_id():
+            raise ValueError("Изменять можно только свой лот")
         rus = offer.descriptions.rus if offer.descriptions and offer.descriptions.rus else None
         body: dict[str, Any] = {
             "price": _price(changes.pop("price", offer.price or 0)),
@@ -65,10 +73,10 @@ class OffersMixin(BaseClient):
             "autoDelivery": changes.pop("auto_delivery", bool(offer.auto_delivery)),
             "isActive": changes.pop("is_active", bool(offer.is_active)),
             "basicAttributes": changes.pop("basic_attributes", [
-                {"id": a["id"], "optionId": a["optionId"]} for a in offer.attributes if "optionId" in a
+                {"id": a.get("id"), "optionId": a["optionId"]} for a in offer.attributes if "optionId" in a and a.get("id")
             ]),
             "numericAttributes": changes.pop("numeric_attributes", [
-                {"id": a["id"], "numericValue": a["numericValue"]} for a in offer.attributes if "numericValue" in a
+                {"id": a.get("id"), "numericValue": a["numericValue"]} for a in offer.attributes if "numericValue" in a and a.get("id")
             ]),
             "goods": changes.pop("goods", offer.goods),
             "tags": changes.pop("tags", offer.tags),
@@ -82,7 +90,7 @@ class OffersMixin(BaseClient):
             body["deliveryTime"] = offer.delivery_time.model_dump(by_alias=True, exclude_none=True, mode="json")
         if changes:
             raise TypeError(f"Неизвестные поля лота: {', '.join(changes)}")
-        await self._request("POST", f"/api/offers/{offer.id}/update", json=drop_none(body), idempotent=True)
+        await self._request("POST", f"/api/offers/{path_id(offer.id)}/update", json=drop_none(body), idempotent=True)
 
     async def bump_offers(self, game_id: int, category_ids: list[int]) -> float | None:
         """

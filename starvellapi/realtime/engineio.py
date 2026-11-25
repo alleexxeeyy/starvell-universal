@@ -3,16 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from logging import getLogger
 from typing import Any
 
 from .._transport import Transport, TransportError, WebSocket, WebSocketClosed
 from ..errors import UnauthorizedError
 
-
-logger = getLogger("starvellapi.realtime")
-
-_sleep = asyncio.sleep
 
 
 class SocketClosed(Exception):
@@ -128,7 +123,7 @@ class SocketIO:
     async def close(self):
         ws, self._ws = self._ws, None
         if ws is not None:
-            try: await ws.send("1")
+            try: await asyncio.wait_for(ws.send("1"), timeout=3)
             except Exception: pass
             await ws.close()
 

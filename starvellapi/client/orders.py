@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from ..models import Order, OrderStatus, UserType
+from .._http import path_id
+from ..models import Order, OrderStatus, TolerantList, UserType
 from .base import BaseClient, drop_none
 
 
@@ -32,19 +33,19 @@ class OrdersMixin(BaseClient):
             "isSellerCompleted": is_seller_completed,
         })
         body = {"filter": filters, "limit": limit, "offset": offset}
-        return await self._request("POST", "/api/orders/list", json=body, type_=list[Order], idempotent=True)
+        return await self._request("POST", "/api/orders/list", json=body, type_=TolerantList[Order], idempotent=True)
 
     async def get_order(self, order_id: str) -> Order:
         """
         Получает заказ по ID (с `offer_id` и `offer_public_id` лота).
         """
-        return await self._request("GET", f"/api/orders/{order_id}", type_=Order)
+        return await self._request("GET", f"/api/orders/{path_id(order_id)}", type_=Order)
 
     async def complete_order(self, order_id: str):
         """
         Отмечает, что продавец выполнил заказ. Окончательно заказ закрывает покупатель.
         """
-        await self._request("POST", f"/api/orders/{order_id}/mark-seller-completed", idempotent=False)
+        await self._request("POST", f"/api/orders/{path_id(order_id)}/mark-seller-completed", idempotent=False)
 
     async def refund_order(self, order_id: str):
         """
@@ -56,4 +57,4 @@ class OrdersMixin(BaseClient):
         """
         Запрашивает возврат по заказу (действие покупателя, через 2 часа после оплаты, пока продавец не отметил выполнение).
         """
-        await self._request("POST", f"/api/orders/{order_id}/refund-request", idempotent=False)
+        await self._request("POST", f"/api/orders/{path_id(order_id)}/refund-request", idempotent=False)

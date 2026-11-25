@@ -31,7 +31,7 @@ class ThreadsafeClient:
     :type timeout: `float` or `None`
     """
 
-    def __init__(self, client: Client, loop: asyncio.AbstractEventLoop, timeout: float | None = None):
+    def __init__(self, client: Client, loop: asyncio.AbstractEventLoop, timeout: float | None = 120):
         self._client = client
         self._loop = loop
         self._timeout = timeout
@@ -104,4 +104,9 @@ async def call_in_loop(coro, loop: asyncio.AbstractEventLoop):
     if loop.is_closed() or not loop.is_running():
         coro.close()
         raise RuntimeError("Event loop клиента не запущен или уже закрыт")
-    return await asyncio.wrap_future(asyncio.run_coroutine_threadsafe(coro, loop))
+    try:
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+    except RuntimeError:
+        coro.close()
+        raise
+    return await asyncio.wrap_future(future)

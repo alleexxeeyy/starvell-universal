@@ -3,6 +3,7 @@ from .events import (
     BalanceUpdatedEvent,
     BaseEvent,
     ChatReadEvent,
+    ConnectionStatusEvent,
     EventType,
     KycStatusUpdatedEvent,
     NewMessageEvent,

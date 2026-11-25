@@ -26,8 +26,9 @@ def test_parse_session():
     assert parse_session("abc") == "abc"
     assert parse_session(" a=1; session=xyz; b=2 ") == "xyz"
     assert parse_session("a=1; b=2") == ""
+    assert parse_session("base64value==") == "base64value=="
     with pytest.raises(TypeError):
-        Http("a=1", transport=object())
+        Http("a=1; b=2", transport=object())
 
 
 def test_proxy_url():

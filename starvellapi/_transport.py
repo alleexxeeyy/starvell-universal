@@ -96,7 +96,7 @@ class _AiohttpWebSocket:
         raise WebSocketClosed(f"сокет закрыт ({msg.type.name}, код {self._ws.close_code})")
 
     async def close(self):
-        try: await self._ws.close()
+        try: await asyncio.wait_for(self._ws.close(), timeout=5)
         except Exception: pass
 
 
@@ -164,13 +164,13 @@ class AiohttpTransport:
     async def ws_connect(self, url: str, *, headers: dict[str, str] | None = None, timeout: float | None = None) -> WebSocket:
         session = self._get_session()
         try:
-            ws = await session.ws_connect(
+            ws = await asyncio.wait_for(session.ws_connect(
                 url,
                 headers=headers,
-                autoping=False,
+                autoping=True,
                 timeout=aiohttp.ClientWSTimeout(ws_close=10),
                 max_msg_size=4 * 1024 * 1024
-            )
+            ), timeout=timeout or self.timeout)
         except aiohttp.WSServerHandshakeError as e:
             raise TransportError(f"сокет отклонён сервером, код {e.status}", sent=True) from e
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
@@ -181,7 +181,8 @@ class AiohttpTransport:
         session, self._session = self._session, None
         self._loop = None
         if session is not None and not session.closed:
-            await session.close()
+            try: await asyncio.wait_for(session.close(), timeout=10)
+            except asyncio.TimeoutError: pass
 
 
 def _is_proxy_connect_error(e: BaseException) -> bool:

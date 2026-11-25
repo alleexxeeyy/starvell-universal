@@ -20,6 +20,7 @@ class EventType(StrEnum):
     ORDER_STATUS_CHANGED = "ORDER_STATUS_CHANGED"
     BALANCE_UPDATED = "BALANCE_UPDATED"
     KYC_STATUS_UPDATED = "KYC_STATUS_UPDATED"
+    CONNECTION_STATUS = "CONNECTION_STATUS"
     SOCKET_EVENT = "SOCKET_EVENT"
 
 
@@ -33,6 +34,8 @@ class BaseEvent:
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
     time: datetime = field(default_factory=_now)
     client: Client | None = field(default=None, repr=False)
+    # чем подтвердить обработку в источнике (EventSource.ack), заполняет источник
+    ack_token: Any = field(default=None, repr=False)
 
 
 @dataclass(eq=False, kw_only=True)
@@ -68,6 +71,8 @@ class _OrderEvent(BaseEvent):
     chat_id: str | None = None
     message: Message | None = None
     notification_type: NotificationType | str | None = None
+    # True - событие найдено догоном после простоя/обрыва, а не пришло вживую
+    catch_up: bool = False
 
     async def answer(self, text: str) -> Message:
         if not self.chat_id:
@@ -111,6 +116,14 @@ class BalanceUpdatedEvent(BaseEvent):
 class KycStatusUpdatedEvent(BaseEvent):
     type: ClassVar[EventType] = EventType.KYC_STATUS_UPDATED
     data: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(eq=False, kw_only=True)
+class ConnectionStatusEvent(BaseEvent):
+    # status: socket, polling, unauthorized, bot_check
+    type: ClassVar[EventType] = EventType.CONNECTION_STATUS
+    status: str
+    error: str | None = None
 
 
 @dataclass(eq=False, kw_only=True)
