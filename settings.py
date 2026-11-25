@@ -36,6 +36,14 @@ CONFIG = SettingsFile(
             "blacklist": {
                 "auto_refund": False
             },
+            "auto_complete_orders": {
+                "enabled": False,
+                "all": True
+            },
+            "auto_bump_offers": {
+                "enabled": False
+            },
+            "auto_review_replies": False,
             "notifications": {
                 "enabled": True,
                 "chat_id": "",
@@ -44,7 +52,11 @@ CONFIG = SettingsFile(
                     "new_system_message": True,
                     "new_order": True,
                     "order_status_changed": True,
-                    "new_review": True
+                    "new_review": True,
+                    "moderation": True,
+                    "out_of_stock": True,
+                    "connection": True,
+                    "balance_updated": False
                 }
             },
         },
@@ -88,6 +100,54 @@ MESSAGES = SettingsFile(
             "text": [
                 "💬 Продавец был вызван в этот чат. Ожидайте, пока он подключится к диалогу..."
             ]
+        },
+        "new_order": {
+            "label": "🛒 Новый заказ",
+            "enabled": False,
+            "text": [
+                "📋 Спасибо за покупку «{order.title}» в количестве {order.quantity} шт.",
+                "",
+                "Продавца сейчас может не быть на месте, чтобы позвать его, используйте команду !продавец"
+            ]
+        },
+        "order_completed": {
+            "label": "✅ Заказ подтверждён",
+            "enabled": False,
+            "text": [
+                "🌟 Спасибо за подтверждение заказа {order.short_id}",
+                "",
+                "Буду рад, если оставите отзыв!"
+            ]
+        },
+        "order_refunded": {
+            "label": "📦 Возврат по заказу",
+            "enabled": False,
+            "text": [
+                "📦 Заказ {order.short_id} был возвращён",
+                "",
+                "Надеюсь, вы ещё что-нибудь у нас купите"
+            ]
+        },
+        "out_of_stock": {
+            "label": "📭 Товар закончился",
+            "enabled": False,
+            "text": [
+                "⏳ Выдача по заказу {order.short_id} задерживается, продавец скоро ответит"
+            ]
+        },
+        "blacklist_order_refunded": {
+            "label": "🚫 Возврат покупателю из ЧС",
+            "enabled": True,
+            "text": [
+                "❌ Вы в чёрном списке продавца, поэтому заказ {order.short_id} был возвращён"
+            ]
+        },
+        "order_review_reply": {
+            "label": "⭐ Ответ на отзыв",
+            "enabled": True,
+            "text": [
+                "Спасибо за отзыв! Будем рады видеть вас снова"
+            ]
         }
     }
 )
@@ -96,6 +156,15 @@ CUSTOM_COMMANDS = SettingsFile(
     path="bot_settings/custom_commands.json",
     need_restore=False,
     default={}
+)
+AUTO_COMPLETE_ORDERS = SettingsFile(
+    name="auto_complete_orders",
+    path="bot_settings/auto_complete_orders.json",
+    need_restore=True,
+    default={
+        "included": [],
+        "excluded": []
+    }
 )
 AUTO_DELIVERIES = SettingsFile(
     name="auto_deliveries",
@@ -117,7 +186,7 @@ BLACKLIST = SettingsFile(
         "users": {}
     }
 )
-DATA = [CONFIG, MESSAGES, CUSTOM_COMMANDS, AUTO_DELIVERIES, FAST_REPLIES, BLACKLIST]
+DATA = [CONFIG, MESSAGES, CUSTOM_COMMANDS, AUTO_DELIVERIES, AUTO_COMPLETE_ORDERS, FAST_REPLIES, BLACKLIST]
 
 
 def validate_config(config, default):

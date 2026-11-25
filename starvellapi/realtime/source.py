@@ -49,6 +49,7 @@ STATUS_EVENTS: dict[str, type[_OrderEvent]] = {
     OrderStatus.REFUND: OrderRefundedEvent,
 }
 _CLOSED = object()
+_MIN_DT = datetime.min.replace(tzinfo=timezone.utc)
 
 
 def _utc(dt: datetime | None) -> datetime | None:
@@ -91,10 +92,11 @@ class EventSource:
 
     Основной канал - socket.io (`wss://starvell.com:8443`). Если сокет недоступен (обрывы подряд, защита QRATOR),
     источник опрашивает REST и раз в `socket_retry_interval` пробует вернуться на сокет.
-    После каждого подключения и перезапуска догоняет пропущенное: незакрытые оплаченные заказы и сообщения
-    после последнего подтверждённого. События одного чата выходят по порядку.
+    После каждого подключения, перезапуска и раз в `resync_interval` сверяется с сайтом: незакрытые оплаченные
+    заказы и сообщения после последнего подтверждённого. События одного чата выходят по порядку.
 
-    Событие считается обработанным только после `ack(event)` (`Dispatcher` подтверждает сам, после хендлеров).
+    Событие считается обработанным только после `ack(event)` (`Dispatcher` подтверждает сам, после хендлеров,
+    в том числе если хендлер упал с ошибкой - иначе ошибка в хендлере повторялась бы бесконечно).
     Неподтверждённое к перезапуску событие придёт снова, поэтому изменяющие действия в хендлерах
     (выдача товара) должны помнить, что уже сделано.
 
@@ -107,8 +109,10 @@ class EventSource:
 
     poll_chats_interval = 4.0
     poll_orders_interval = 6.0
+    resync_interval = 180.0
     socket_retry_interval = 300.0
     reconnect_delays = (1.0, 3.0, 5.0, 10.0, 20.0, 30.0)
+    sync_retry_delays = (5.0, 15.0, 30.0, 60.0, 120.0)
     max_socket_failures = 3
     stable_after = 60.0
     order_chat_wait = 10.0
@@ -118,6 +122,7 @@ class EventSource:
     save_interval = 5.0
     sync_chats_limit = 20
     sync_orders_limit = 30
+    sync_pages = 5
     chat_pages = 5
 
     def __init__(
@@ -145,21 +150,25 @@ class EventSource:
         self._runner: asyncio.Task | None = None
         self._saver: asyncio.Task | None = None
         self._sync_task: asyncio.Task | None = None
+        self._sync_again = False
+        self._last_sync_ok = 0.0
         self._held: list | None = None
         self._closed = False
         self._last_status: tuple | None = None
 
         # подтверждённое (уходит в state)
         self._initialized = False
+        self._chats_fresh = False
         self._p_orders: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._p_seen = _Seen(1000)
         self._p_chats: OrderedDict[str, str] = OrderedDict()
         self._watermark: datetime | None = None
         # в памяти процесса
         self._seen = _Seen(5000)
-        self._claimed: set[tuple[str, str]] = set()
-        self._order_status: dict[str, str | None] = {}
-        self._retrying: set[str] = set()
+        self._claimed = _Seen(20000)
+        self._order_status: OrderedDict[str, str | None] = OrderedDict()
+        self._pending: dict[str, OrderedDict[str, tuple[bool, str | None]]] = {}
+        self._retrying: set[tuple[str, str | None]] = set()
         self._chat_by_user: OrderedDict[int, str] = OrderedDict()
         self._dirty = False
         self._last_save = 0.0
@@ -196,11 +205,16 @@ class EventSource:
         if self._closed:
             return
         self._closed = True
-        tasks = [t for t in (self._runner, self._saver, self._sync_task, *self._tasks, *self._chat_workers.values()) if t is not None]
+        # отменяем, пока не останется живых задач: finally воркеров и синка не должен плодить новые
+        while True:
+            tasks = [t for t in (self._runner, self._saver, self._sync_task, *self._tasks, *self._chat_workers.values())
+                     if t is not None and not t.done()]
+            if not tasks:
+                break
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
         self._runner = self._saver = self._sync_task = None
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
         self._tasks.clear()
         self._chat_workers.clear()
         self._chat_queues.clear()
@@ -211,8 +225,13 @@ class EventSource:
         self._queue.put_nowait(_CLOSED)
 
     def _on_runner_done(self, task: asyncio.Task):
-        if not task.cancelled() and task.exception() is not None:
-            logger.critical(f"Источник событий Starvell остановился: {task.exception()!r}")
+        if task.cancelled() or task.exception() is None:
+            return
+        logger.critical(f"Источник событий Starvell остановился: {task.exception()!r}")
+        if not self._closed:
+            self._emit(ConnectionStatusEvent(status="failed", error=repr(task.exception())))
+            self._closed = True
+            self._queue.put_nowait(_CLOSED)
 
     # --- подтверждение и состояние ---
 
@@ -232,20 +251,40 @@ class EventSource:
             # заказы пишем сразу: от этого зависит, не выдастся ли товар второй раз после падения
             self._save(force=True)
 
+    def _track(self, msg_id: str, chat_id: str, created: str | None):
+        self._pending.setdefault(chat_id, OrderedDict())[msg_id] = (False, created)
+
     def _ack_message(self, msg_id: str, chat_id: str | None, created: str | None):
         self._p_seen.add(msg_id)
-        if chat_id:
-            self._p_chats[chat_id] = msg_id
-            self._p_chats.move_to_end(chat_id)
+        self._dirty = True
+        pending = self._pending.get(chat_id) if chat_id else None
+        if pending is None or msg_id not in pending:
+            if chat_id:
+                self._set_chat_cursor(chat_id, msg_id, created)
+            return
+        pending[msg_id] = (True, created)
+        # курсор чата двигаем только по сплошной подтверждённой части - иначе неподтверждённое не вернётся догоном
+        while pending:
+            first_id, (done, first_created) = next(iter(pending.items()))
+            if not done:
+                break
+            pending.popitem(last=False)
+            self._set_chat_cursor(chat_id, first_id, first_created)
+        if not pending:
+            del self._pending[chat_id]
+
+    def _set_chat_cursor(self, chat_id: str, msg_id: str, created: str | None):
+        self._p_chats[chat_id] = msg_id
+        self._p_chats.move_to_end(chat_id)
         if created:
             self._advance(_utc(datetime.fromisoformat(created)))
-        self._dirty = True
 
-    def _record(self, order_id: str, key: str | None, status: str | None):
+    def _record(self, order_id: str, key: str | None, status: str | None, keep_status: bool = False):
         info = self._p_orders.setdefault(order_id, {"status": status, "events": []})
         if key and key not in info["events"]:
             info["events"].append(key)
-        info["status"] = status
+        if not keep_status:
+            info["status"] = status
         self._p_orders.move_to_end(order_id)
         self._dirty = True
 
@@ -254,9 +293,17 @@ class EventSource:
             self._watermark = dt
             self._dirty = True
 
+    def _set_order_status(self, order_id: str, status: str | None):
+        self._order_status[order_id] = status
+        self._order_status.move_to_end(order_id)
+        while len(self._order_status) > 5000:
+            self._order_status.popitem(last=False)
+
     def _load(self):
         state = self.store.load() or {}
         self._initialized = bool(state.get("initialized"))
+        # битое состояние: заказы покажем заново (повтор гасит хендлер), а старые сообщения чатов - нет
+        self._chats_fresh = bool(state.get("corrupted"))
         if state.get("watermark"):
             try: self._watermark = _utc(datetime.fromisoformat(state["watermark"]))
             except ValueError: self._watermark = None
@@ -266,7 +313,7 @@ class EventSource:
         for order_id, info in (state.get("orders") or {}).items():
             if isinstance(info, dict):
                 self._p_orders[order_id] = {"status": info.get("status"), "events": list(info.get("events") or [])}
-                self._order_status[order_id] = info.get("status")
+                self._set_order_status(order_id, info.get("status"))
         for chat_id, msg_id in (state.get("chats") or {}).items():
             self._p_chats[chat_id] = msg_id
 
@@ -292,7 +339,7 @@ class EventSource:
             self._dirty = False
             self._last_save = _now()
         except Exception:
-            logger.warning(f"Не удалось сохранить состояние событий: {traceback.format_exc()}")
+            logger.error(f"Не удалось сохранить состояние событий (после перезапуска возможны повторы): {traceback.format_exc()}")
 
     async def _save_loop(self):
         while True:
@@ -302,13 +349,12 @@ class EventSource:
     # --- основной цикл ---
 
     def _set_mode(self, mode: Mode):
-        if self.mode == mode:
-            return
-        self.mode = mode
-        if mode == "socket":
-            logger.info("События Starvell: подключён сокет")
-        else:
-            logger.warning(f"События Starvell: сокет недоступен, опрашиваю сайт (новая попытка сокета через {self.socket_retry_interval:.0f} сек.)")
+        if self.mode != mode:
+            self.mode = mode
+            if mode == "socket":
+                logger.info("События Starvell: подключён сокет")
+            else:
+                logger.warning(f"События Starvell: сокет недоступен, опрашиваю сайт (новая попытка сокета через {self.socket_retry_interval:.0f} сек.)")
         self._connection_status(mode)
 
     def _connection_status(self, status: str, error: BaseException | None = None):
@@ -370,8 +416,10 @@ class EventSource:
         connected_at = _now()
         self._set_mode("socket")
         # пока догоняем пропущенное, сообщения сокета придерживаем - так порядок в чате не нарушится
-        self._held = []
-        self._start_sync()
+        if self._held is None:
+            self._held = []
+        self._request_sync()
+        resync = self._spawn(self._resync_loop())
         try:
             async for namespace, name, args in sio.events():
                 try:
@@ -381,25 +429,44 @@ class EventSource:
         except SocketClosed as e:
             logger.info(f"Сокет Starvell отключился: {e}, переподключаюсь")
         finally:
+            resync.cancel()
             self._socket = None
             await sio.close()
-            if self._sync_task is None or self._sync_task.done():
-                self._flush_held()
         return connected_at
 
-    def _start_sync(self):
-        if self._sync_task is not None and not self._sync_task.done():
-            return
-        self._sync_task = asyncio.ensure_future(self._sync_and_flush())
+    async def _resync_loop(self):
+        # сверка и при живом сокете: события, пропущенные сокетом без обрыва, тоже найдутся
+        while True:
+            await _sleep(self.resync_interval)
+            self._request_sync()
 
-    async def _sync_and_flush(self):
+    def _request_sync(self):
+        if self._sync_task is not None and not self._sync_task.done():
+            self._sync_again = True
+            return
+        self._sync_task = asyncio.ensure_future(self._sync_until_ok())
+
+    async def _sync_until_ok(self):
         try:
-            await self._safe(self._sync())
+            attempt = 0
+            while not self._closed:
+                self._sync_again = False
+                error = await self._safe(self._sync())
+                if error is None:
+                    if self._sync_again:
+                        continue
+                    break
+                delay = self.sync_retry_delays[min(attempt, len(self.sync_retry_delays) - 1)]
+                attempt += 1
+                logger.warning(f"События Starvell: догон не удался, повтор через {delay:.0f} сек.")
+                await _sleep(delay)
         finally:
             self._flush_held()
 
     def _flush_held(self):
         held, self._held = self._held, None
+        if self._closed:
+            return
         for message, raw in held or []:
             self._feed(message, raw)
 
@@ -422,8 +489,7 @@ class EventSource:
                 continue
             if errors and all(e is None for e in errors):
                 backoff = 0
-                if self._last_status and self._last_status[0] != "polling":
-                    self._connection_status("polling")
+                self._connection_status("polling")
             await _sleep(1.0)
 
     async def _safe(self, coro) -> BaseException | None:
@@ -484,21 +550,23 @@ class EventSource:
 
     # --- сообщения (очередь на чат) ---
 
-    def _feed(self, message: Message, raw: dict[str, Any]):
-        if not message.id or not message.chat_id or not self._seen.add(message.id):
+    def _feed(self, message: Message, raw: dict[str, Any], catch_up: bool = False):
+        if self._closed or not message.id or not message.chat_id or not self._seen.add(message.id):
             return
+        created = _utc(message.created_at)
+        self._track(message.id, message.chat_id, created.isoformat() if created else None)
         queue = self._chat_queues.get(message.chat_id)
         if queue is None:
             queue = self._chat_queues[message.chat_id] = deque()
-        queue.append((message, raw))
+        queue.append((message, raw, catch_up))
         if message.chat_id not in self._chat_workers:
             self._chat_workers[message.chat_id] = asyncio.ensure_future(self._chat_worker(message.chat_id, queue))
 
     async def _chat_worker(self, chat_id: str, queue: deque):
         try:
             while queue:
-                message, raw = queue.popleft()
-                await self._safe(self._process_message(message, raw))
+                message, raw, catch_up = queue.popleft()
+                await self._safe(self._process_message(message, raw, catch_up))
         finally:
             # без await между проверкой очереди и удалением воркера - новое сообщение запустит новый воркер
             if self._chat_workers.get(chat_id) is asyncio.current_task():
@@ -506,23 +574,24 @@ class EventSource:
             if not queue and self._chat_queues.get(chat_id) is queue:
                 del self._chat_queues[chat_id]
 
-    async def _process_message(self, message: Message, raw: dict[str, Any]):
+    async def _process_message(self, message: Message, raw: dict[str, Any], catch_up: bool = False):
         self._remember_chat(message)
         mine = message.author_id is not None and message.author_id == self.client.id
         created = _utc(message.created_at)
         token = ("message", message.id, message.chat_id, created.isoformat() if created else None)
-        try:
-            if message.is_notification and message.order_id:
-                await self._order_from_message(message)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.error(f"Ошибка разбора заказа из сообщения {message.id}: {traceback.format_exc()}")
-        finally:
-            if mine and not self.own_messages:
-                self._ack_message(*token[1:])
-            else:
-                self._emit(NewMessageEvent(message=message, raw=raw), token)
+        if message.is_notification and message.order_id:
+            try:
+                await self._order_from_message(message, catch_up)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # само сообщение выдаём в любом случае, заказ найдёт сверка
+                logger.error(f"Ошибка разбора заказа из сообщения {message.id}: {traceback.format_exc()}")
+        if mine and not self.own_messages:
+            # своё подтверждаем по порядку, вместе с неподтверждёнными сообщениями перед ним
+            self._ack_message(*token[1:])
+        else:
+            self._emit(NewMessageEvent(message=message, raw=raw), token)
 
     def _remember_chat(self, message: Message):
         for user in (message.buyer, message.seller, message.author):
@@ -535,7 +604,7 @@ class EventSource:
     # --- заказы ---
 
     def _done(self, order_id: str, key: str) -> bool:
-        return (order_id, key) in self._claimed or key in (self._p_orders.get(order_id) or {}).get("events", [])
+        return f"{order_id}|{key}" in self._claimed or key in (self._p_orders.get(order_id) or {}).get("events", [])
 
     async def _fetch_order(self, order_id: str) -> Order | None:
         for attempt in range(self.order_fetch_retries):
@@ -549,17 +618,18 @@ class EventSource:
                     await _sleep(2 * (attempt + 1))
         return None
 
-    async def _order_from_message(self, message: Message):
+    async def _order_from_message(self, message: Message, catch_up: bool = False):
         order = await self._fetch_order(message.order_id)
         if order is None:
-            self._retry_later(message.order_id, message.chat_id, message, message.notification_type)
+            self._retry_later(message.order_id, message.chat_id, message, message.notification_type, catch_up)
             return
-        await self._handle_order(order, message.chat_id, message, message.notification_type)
+        await self._handle_order(order, message.chat_id, message, message.notification_type, catch_up)
 
-    def _retry_later(self, order_id: str, chat_id: str | None, message: Message | None, kind: str | None):
-        if order_id in self._retrying or self._closed:
+    def _retry_later(self, order_id: str, chat_id: str | None, message: Message | None, kind: str | None, catch_up: bool = False):
+        key = (order_id, str(kind) if kind else None)
+        if key in self._retrying or self._closed:
             return
-        self._retrying.add(order_id)
+        self._retrying.add(key)
 
         async def retry():
             try:
@@ -567,11 +637,11 @@ class EventSource:
                     await _sleep(delay)
                     order = await self._fetch_order(order_id)
                     if order is not None:
-                        await self._handle_order(order, chat_id, message, kind)
+                        await self._handle_order(order, chat_id, message, kind, catch_up)
                         return
-                logger.error(f"Не удалось получить заказ {order_id} с Starvell: событие по нему не выдано, проверьте заказ вручную")
+                logger.error(f"Не удалось получить заказ {order_id} с Starvell: событие по нему пока не выдано, источник проверит заказ при следующей сверке")
             finally:
-                self._retrying.discard(order_id)
+                self._retrying.discard(key)
         self._spawn(self._safe(retry()))
 
     async def _handle_order(
@@ -582,30 +652,35 @@ class EventSource:
         kind: str | None,
         catch_up: bool = False
     ):
-        if not order.id or order.seller_id is None or order.seller_id != self.client.id:
-            # своя покупка или заказ без продавца - не наша продажа
+        if not order.id:
+            return
+        if order.seller_id is None:
+            logger.warning(f"У заказа {order.short_id or order.id} не разобрался продавец - заказ пропущен")
+            return
+        if order.seller_id != self.client.id:
+            # своя покупка - не наша продажа
             return
         status = _status(order)
         if kind == NotificationType.ORDER_PAYMENT or (kind is None and order.is_paid):
             await self._maybe_new_order(order, chat_id, message, kind, catch_up)
         if kind == NotificationType.ORDER_SELLER_COMPLETED:
-            self._emit_order(OrderSellerCompletedEvent, order, chat_id, message, kind, OrderSellerCompletedEvent.type.value)
+            self._emit_order(OrderSellerCompletedEvent, order, chat_id, message, kind, OrderSellerCompletedEvent.type.value, catch_up)
         if kind == NotificationType.ORDER_REFUND:
-            self._emit_order(OrderRefundedEvent, order, chat_id, message, kind, OrderRefundedEvent.type.value)
+            self._emit_order(OrderRefundedEvent, order, chat_id, message, kind, OrderRefundedEvent.type.value, catch_up)
 
         previous = self._order_status.get(order.id)
         if previous is not None and previous != status:
             cls = STATUS_EVENTS.get(order.status, OrderStatusChangedEvent)
             key = cls.type.value if cls is not OrderStatusChangedEvent else f"{cls.type.value}:{status}"
             self._emit_order(cls, order, chat_id, message, kind, key, catch_up, previous)
-        self._order_status[order.id] = status
+        self._set_order_status(order.id, status)
 
     async def _maybe_new_order(self, order: Order, chat_id: str | None, message: Message | None, kind: str | None, catch_up: bool):
         if self._done(order.id, NEW_ORDER) or not order.is_paid:
             return
         if order.is_closed or (catch_up and order.seller_completed_at is not None):
-            # закрыт или уже выполнен, пока бот не видел, - выдавать нечего
-            self._record(order.id, NEW_ORDER, _status(order))
+            # закрыт или уже выполнен, пока бот не видел, - выдавать нечего (статус не трогаем: его событие ещё впереди)
+            self._record(order.id, NEW_ORDER, _status(order), keep_status=True)
             return
         if chat_id is None:
             chat_id = await self._find_chat(order)
@@ -631,7 +706,7 @@ class EventSource:
         if cls is OrderStatusChangedEvent:
             kwargs["previous_status"] = previous_status
         event = cls(**kwargs)
-        self._claimed.add((order.id, key))
+        self._claimed.add(f"{order.id}|{key}")
         self._emit(event, ("order", order.id, key, _status(order)))
 
     async def _order_fallback(self, order_id: str):
@@ -678,12 +753,24 @@ class EventSource:
     async def _sync(self):
         await self._sync_orders()
         await self._sync_chats()
+        self._last_sync_ok = _now()
         if not self._initialized:
             self._initialized = True
             self._save(force=True)
 
     async def _sync_orders(self):
-        orders: list[Order] = await self.client.get_orders(UserType.SELLER, limit=self.sync_orders_limit)
+        orders: list[Order] = []
+        for page in range(self.sync_pages):
+            batch = await self.client.get_orders(UserType.SELLER, limit=self.sync_orders_limit, offset=page * self.sync_orders_limit)
+            orders.extend(batch)
+            if len(batch) < self.sync_orders_limit or not self._initialized:
+                break
+            # дальше листаем, только пока на странице есть незнакомое
+            if all((o.id in self._order_status and not self._needs_new(o)) for o in batch if o.id):
+                break
+        else:
+            logger.warning(f"Догон заказов: больше {self.sync_pages * self.sync_orders_limit} новых заказов, старые проверю при следующей сверке")
+
         for short in reversed(orders):
             if not short.id:
                 continue
@@ -691,20 +778,35 @@ class EventSource:
             if not self._initialized:
                 # первый запуск: всё, что уже есть, считаем обработанным
                 self._record(short.id, NEW_ORDER if short.is_paid else None, status)
-                self._order_status[short.id] = status
+                self._set_order_status(short.id, status)
                 continue
-            need_new = short.is_paid and not short.is_closed and not self._done(short.id, NEW_ORDER)
+            need_new = self._needs_new(short)
             previous = self._order_status.get(short.id)
             if not need_new and (previous is None or previous == status):
-                self._order_status.setdefault(short.id, status)
+                if previous is None:
+                    self._set_order_status(short.id, status)
                 continue
             order = await self._fetch_order(short.id)
             if order is None:
                 continue
             await self._handle_order(order, None, None, None, catch_up=True)
 
+    def _needs_new(self, order: Order) -> bool:
+        return order.is_paid and not order.is_closed and not self._done(order.id, NEW_ORDER)
+
     async def _sync_chats(self):
-        chats = await self.client.get_chats(limit=self.sync_chats_limit)
+        # порог для новых чатов фиксируем на старте: подтверждения во время догона двигают watermark
+        border = self._watermark - self.new_chat_margin if self._watermark else None
+        fresh = not self._initialized or self._chats_fresh
+        chats = []
+        for page in range(self.sync_pages):
+            batch = await self.client.get_chats(limit=self.sync_chats_limit, offset=page * self.sync_chats_limit)
+            chats.extend(batch)
+            if fresh or len(batch) < self.sync_chats_limit:
+                break
+            if any(c.last_message and c.last_message.id in self._seen for c in batch):
+                break
+
         for chat in reversed(chats):
             if not chat.id:
                 continue
@@ -714,17 +816,19 @@ class EventSource:
             last = chat.last_message
             if last is None or not last.id:
                 continue
-            if not self._initialized:
+            if fresh:
                 created = _utc(last.created_at)
                 self._seen.add(last.id)
                 self._ack_message(last.id, chat.id, created.isoformat() if created else None)
                 continue
             if last.id in self._seen:
                 continue
-            for message in await self._missed_messages(chat.id):
-                self._feed(message, _raw(message))
+            for message in await self._missed_messages(chat.id, border):
+                self._feed(message, _raw(message), catch_up=True)
+        if self._chats_fresh:
+            self._chats_fresh = False
 
-    async def _missed_messages(self, chat_id: str) -> list[Message]:
+    async def _missed_messages(self, chat_id: str, border: datetime | None) -> list[Message]:
         after = self._p_chats.get(chat_id)
         collected: dict[str, Message] = {}
         if after:
@@ -736,7 +840,7 @@ class EventSource:
                             collected[m.id] = m
                     if not page.has_more_after or not page.items:
                         break
-                    newest = max(page.items, key=lambda m: _utc(m.created_at) or datetime.min.replace(tzinfo=timezone.utc))
+                    newest = max(page.items, key=lambda m: _utc(m.created_at) or _MIN_DT)
                     if newest.id == after:
                         break
                     after = newest.id
@@ -744,7 +848,6 @@ class EventSource:
             except StarvellError as e:
                 logger.debug(f"Догон чата {chat_id} от {after}: {e}, беру последние сообщения")
         page = await self.client.get_messages(chat_id, limit=20)
-        border = self._watermark - self.new_chat_margin if self._watermark else None
         return self._chronological(
             m for m in page.items
             if m.id and (border is None or (_utc(m.created_at) is not None and _utc(m.created_at) >= border))
@@ -752,7 +855,7 @@ class EventSource:
 
     @staticmethod
     def _chronological(messages) -> list[Message]:
-        return sorted(messages, key=lambda m: _utc(m.created_at) or datetime.min.replace(tzinfo=timezone.utc))
+        return sorted(messages, key=lambda m: _utc(m.created_at) or _MIN_DT)
 
     def _emit(self, event: BaseEvent, token: Any = None):
         if event.client is None:

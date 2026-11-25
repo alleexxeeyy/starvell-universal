@@ -172,6 +172,16 @@ class TelegramBot:
             try: await self.dp.start_polling(self.bot, skip_updates=True, handle_signals=False)
             except: pass
 
+    async def call_seller(self, username: str, chat_id: str):
+        config = sett.get("config")
+        for user_id in config["telegram"]["bot"]["signed_users"]:
+            await self.bot.send_message(
+                chat_id=user_id,
+                text=templ.call_seller_text(username, chat_id),
+                reply_markup=templ.call_seller_kb(chat_id),
+                parse_mode="HTML"
+            )
+
     async def log_event(self, text: str, kb: InlineKeyboardMarkup | None = None):
         config = sett.get("config")
         chat_id = config["starvell"]["notifications"]["chat_id"]

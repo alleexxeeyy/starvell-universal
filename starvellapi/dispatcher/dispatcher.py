@@ -246,20 +246,20 @@ class Dispatcher(Router):
             stopped = True
         finally:
             stop_event, self._stop = self._stop, None
-            source, self._source = self._source, None
             helpers = [f for f in (get, stop_wait) if f is not None]
             try:
                 for f in helpers:
                     f.cancel()
                 pending = list(self._pending)
                 if stopped and pending:
-                    # stop() — даём хендлерам доработать (в том числе тому, кто вызвал stop)
+                    # stop() — даём хендлерам доработать (в том числе тому, кто вызвал stop): их ack ещё нужен источнику
                     await asyncio.wait(pending, timeout=self.shutdown_timeout)
                 for task in pending:
                     task.cancel()
                 await asyncio.gather(*pending, *helpers, return_exceptions=True)
                 self._chains.clear()
             finally:
+                source, self._source = self._source, None
                 if source is not None:
                     await source.close()
 

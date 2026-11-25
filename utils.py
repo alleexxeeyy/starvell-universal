@@ -479,10 +479,36 @@ def is_proxy_alive(proxy: str, url: str = "https://starvell.com", timeout: int =
 
 
 def diagnose_starvell() -> dict | None:
-    api = sett.get("config")["starvell"]["api"]
+    import asyncio
+    from starvellapi import Client, BotCheckError, NetworkError, UnauthorizedError, TwoFactorRequiredError, StarvellError
 
+    api = sett.get("config")["starvell"]["api"]
     if not api["session"]:
         return {"code": "no_session", "text": "Не указан Session аккаунта Starvell", "transient": False}
+    if api["proxy"] and not is_proxy_alive(api["proxy"]):
+        return {"code": "proxy", "text": "Прокси для Starvell не отвечает", "transient": True}
+
+    async def check():
+        async with Client(session=api["session"], user_agent=api["user_agent"] or None, proxy=api["proxy"] or None,
+                          timeout=api["requests_timeout"] or 30) as client:
+            return client.me
+
+    try:
+        me = asyncio.run(check())
+    except TwoFactorRequiredError:
+        return {"code": "session", "text": "Starvell просит код двухфакторной аутентификации — войдите на сайт и скопируйте Session заново", "transient": False}
+    except UnauthorizedError:
+        return {"code": "session", "text": "Session недействителен или устарел — скопируйте его заново из браузера", "transient": False}
+    except BotCheckError:
+        return {"code": "bot_check", "text": "Защита Starvell не пропускает запросы — смените прокси или подождите", "transient": True}
+    except NetworkError as e:
+        return {"code": "network", "text": f"Нет связи со Starvell: {e.error}", "transient": True}
+    except StarvellError as e:
+        return {"code": "server", "text": f"Starvell ответил ошибкой: {e}", "transient": True}
+    if me is None or me.user is None:
+        return {"code": "session", "text": "Не удалось получить профиль аккаунта Starvell", "transient": False}
+    if me.user.is_banned:
+        return {"code": "banned", "text": "Аккаунт Starvell заблокирован", "transient": False}
     return None
 
 

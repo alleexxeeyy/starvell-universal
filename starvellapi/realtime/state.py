@@ -41,13 +41,17 @@ class JsonFileState:
             if isinstance(data, dict):
                 return data
             raise ValueError("не объект")
+        except PermissionError as e:
+            # без доступа к файлу состояние не сохранить - лучше остановиться, чем молча выдавать повторно
+            raise RuntimeError(f"Нет доступа к файлу состояния событий {self.path}: {e}") from e
         except (OSError, ValueError) as e:
-            # битый файл - не первый запуск: старые заказы не «списываем», а показываем заново (повтор гасит хендлер)
+            # битый файл - не первый запуск: незакрытые заказы показываем заново (повтор гасит хендлер),
+            # а старые сообщения чатов - нет
             backup = f"{self.path}.corrupt-{int(time.time())}"
             try: os.replace(self.path, backup)
             except OSError: backup = "-"
             logger.error(f"Состояние событий повреждено ({e}), копия: {backup}. Незакрытые заказы будут показаны заново")
-            return {"initialized": True}
+            return {"initialized": True, "corrupted": True}
 
     def save(self, state: dict[str, Any]):
         folder = os.path.dirname(os.path.abspath(self.path))
@@ -59,6 +63,10 @@ class JsonFileState:
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(tmp, self.path)
+            if hasattr(os, "O_DIRECTORY"):
+                dir_fd = os.open(folder, os.O_DIRECTORY)
+                try: os.fsync(dir_fd)
+                finally: os.close(dir_fd)
         except BaseException:
             try: os.remove(tmp)
             except OSError: pass

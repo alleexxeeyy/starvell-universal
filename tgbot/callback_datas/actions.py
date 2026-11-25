@@ -31,3 +31,12 @@ class DeleteFastReply(CallbackData, prefix="delrepl"):
 
 class SendLogsFile(CallbackData, prefix="selogs"):
     lines: int
+
+class RememberChatId(CallbackData, prefix="remchat"):
+    id: str
+    do: str
+
+
+class RememberOrderId(CallbackData, prefix="remord"):
+    id: str
+    do: str

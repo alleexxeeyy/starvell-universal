@@ -2,6 +2,7 @@ import textwrap
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from utils import github_str_to_dt
+from .. import callback_datas as calls
 
 
 def error_text(placeholder: str):
@@ -85,3 +86,83 @@ def log_text(title: str, text=""):
 
 def sign_text(placeholder: str):
     return f"<b>🔐 Авторизация</b>\n\n{placeholder}"
+
+def _site_row(chat_id: str | None = None, order_id: str | None = None):
+    row = []
+    if chat_id:
+        row.append(InlineKeyboardButton(text="💬 Диалог", url=f"https://starvell.com/chat/{chat_id}"))
+    if order_id:
+        row.append(InlineKeyboardButton(text="📋 Заказ", url=f"https://starvell.com/order/{order_id}"))
+    return row
+
+
+def log_new_mess_kb(chat_id: str):
+    rows = [
+        [
+        InlineKeyboardButton(text="✏️ Ответить", callback_data=calls.RememberChatId(id=chat_id, do="send_mess").pack()),
+        InlineKeyboardButton(text="⚡ Быстрый ответ", callback_data=calls.RememberChatId(id=chat_id, do="send_fast_reply").pack())
+        ],
+        _site_row(chat_id),
+        [InlineKeyboardButton(text="🚫 В ЧС", callback_data=calls.RememberChatId(id=chat_id, do="blacklist").pack())],
+        [InlineKeyboardButton(text="❌ Закрыть", callback_data="destroy")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def log_new_order_kb(chat_id: str | None, order_id: str, completed: bool = False):
+    rows = []
+    if chat_id:
+        rows.append([
+            InlineKeyboardButton(text="✏️ Ответить", callback_data=calls.RememberChatId(id=chat_id, do="send_mess").pack()),
+            InlineKeyboardButton(text="⚡ Быстрый ответ", callback_data=calls.RememberChatId(id=chat_id, do="send_fast_reply").pack())
+        ])
+    actions = [InlineKeyboardButton(text="📦 Возврат", callback_data=calls.RememberOrderId(id=order_id, do="refund").pack())]
+    if not completed:
+        actions.insert(0, InlineKeyboardButton(text="☑️ Выполнил", callback_data=calls.RememberOrderId(id=order_id, do="complete").pack()))
+    rows.append(actions)
+    rows.append(_site_row(chat_id, order_id))
+    if chat_id:
+        rows.append([InlineKeyboardButton(text="🚫 В ЧС", callback_data=calls.RememberChatId(id=chat_id, do="blacklist").pack())])
+    rows.append([InlineKeyboardButton(text="❌ Закрыть", callback_data="destroy")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def log_order_kb(order_id: str, chat_id: str | None = None):
+    rows = [_site_row(chat_id, order_id), [InlineKeyboardButton(text="❌ Закрыть", callback_data="destroy")]]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def log_blacklisted_order_kb(chat_id: str | None, order_id: str, username: str, refunded: bool = False):
+    rows = []
+    if not refunded:
+        rows.append([InlineKeyboardButton(text="📦 Возврат", callback_data=calls.RememberOrderId(id=order_id, do="refund").pack())])
+    rows.append(_site_row(chat_id, order_id))
+    if chat_id:
+        rows.append([InlineKeyboardButton(text="✅ Убрать из ЧС", callback_data=calls.RememberChatId(id=chat_id, do="unblacklist").pack())])
+    rows.append([InlineKeyboardButton(text="❌ Закрыть", callback_data="destroy")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def log_offer_kb(public_id: str):
+    rows = [
+        [InlineKeyboardButton(text="🛍 Лот", url=f"https://starvell.com/offers/edit/{public_id}")],
+        [InlineKeyboardButton(text="❌ Закрыть", callback_data="destroy")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def call_seller_text(username: str, chat_id: str):
+    txt = textwrap.dedent(f"""
+        <b>🆘 {username} вызывает вас</b>
+        \n<a href="https://starvell.com/chat/{chat_id}">Перейти в диалог</a>
+    """)
+    return txt
+
+
+def call_seller_kb(chat_id: str):
+    rows = [
+        [InlineKeyboardButton(text="✏️ Ответить", callback_data=calls.RememberChatId(id=chat_id, do="send_mess").pack())],
+        [InlineKeyboardButton(text="💬 Перейти в диалог", url=f"https://starvell.com/chat/{chat_id}")],
+        [InlineKeyboardButton(text="❌ Закрыть", callback_data="destroy")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)

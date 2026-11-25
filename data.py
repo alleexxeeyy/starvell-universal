@@ -24,7 +24,12 @@ CACHED_ORDERS = DataFile(
     path="bot_data/cached_orders.json",
     default={}
 )
-DATA = [INITIALIZED_USERS, CACHED_ORDERS]
+BUMP_CATEGORIES = DataFile(
+    name="bump_categories",
+    path="bot_data/bump_categories.json",
+    default={}
+)
+DATA = [INITIALIZED_USERS, CACHED_ORDERS, BUMP_CATEGORIES]
 
 # служебные файлы — не попадают в экспорт конфигов
 BOOT_MARKER = DataFile(
