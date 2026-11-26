@@ -55,6 +55,9 @@ def _with_error(txt: str, error: str | None) -> str:
 
 
 def setup_session_text(step: int = None, error: str = None):
+    from __init__ import STARVELL_REF_LINK
+    # реф-ссылку показываем только в мастере первой настройки
+    ref = f"\n\n🆕 Ещё нет аккаунта на Starvell? <a href=\"{STARVELL_REF_LINK}\">Зарегистрируйтесь по ссылке</a>" if step is not None else ""
     return _with_error(
         f"{_step(step)}🍪 Отправьте <b>Session</b> аккаунта Starvell"
         "\n<blockquote>1. Войдите в свой аккаунт на starvell.com в браузере"
@@ -62,7 +65,8 @@ def setup_session_text(step: int = None, error: str = None):
         "\n3. Откройте его на сайте Starvell и скопируйте значение куки <b>session</b>"
         "\n4. Пришлите его сюда (или .txt файлом)</blockquote>"
         "\n<blockquote><b>(?)</b> Можно прислать и все куки целиком (<b>Export</b> → <b>Header String</b>) — бот сам найдёт в них session.</blockquote>"
-        "\n\n🔐 Сообщение с ключом бот сразу удалит из чата",
+        "\n\n🔐 Сообщение с ключом бот сразу удалит из чата"
+        + ref,
         error
     )
 

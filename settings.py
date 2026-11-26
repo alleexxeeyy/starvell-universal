@@ -27,7 +27,6 @@ CONFIG = SettingsFile(
                 "proxy": "",
                 "requests_timeout": 30
             },
-            "partner_link": "",
             "watermark": {
                 "enabled": True,
                 "value": "©️ 𝗦𝘁𝗮𝗿𝘃𝗲𝗹𝗹 𝗨𝗻𝗶𝘃𝗲𝗿𝘀𝗮𝗹"
