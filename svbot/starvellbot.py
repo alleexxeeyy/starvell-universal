@@ -63,6 +63,13 @@ MESSAGE_LIMIT = 1000
 STAFF_ROLES = {"MODERATOR", "SUPPORT", "ARBITRAGE", "ADMIN"}
 BUMP_COOLDOWN = 4 * 60 * 60
 
+NOTIFICATION_LABELS = {
+    "ORDER_PAYMENT": "Заказ оплачен",
+    "ORDER_SELLER_COMPLETED": "Продавец выполнил заказ",
+    "ORDER_REFUND": "Оформлен возврат",
+    "ORDER_NOT_PAID_REMINDER": "Напоминание об оплате",
+}
+
 PRIORITY_DELIVERY = 0
 PRIORITY_NORMAL = 1
 PRIORITY_LOW = 2
@@ -281,6 +288,10 @@ class StarvellBot:
         from core.console import log_panel
         author = message.author.username if message.author else "Starvell"
         text = message.text
+        if message.is_notification and not text:
+            short_id = message.order.short_id if message.order else (message.metadata.order_short_id if message.metadata else None)
+            label = NOTIFICATION_LABELS.get(message.notification_type, str(message.notification_type or "уведомление"))
+            text = f"{Fore.LIGHTBLACK_EX}*{label}{' ' + short_id if short_id else ''}*{Fore.RESET}"
         if message.images:
             text = f"{Fore.LIGHTMAGENTA_EX}*Изображения ({len(message.images)})*{Fore.RESET}" + ((" " + text) if text else "")
         log_panel(logger, f"💬 Чат с {Fore.LIGHTCYAN_EX}{self.chat_username(message.chat_id) or author}",
