@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from html import escape
 from typing import Any
 
 from starvellapi.models import Offer, Order
@@ -65,3 +66,12 @@ def binding_title(binding: dict[str, Any]) -> str:
         return "без лотов"
     first = offers[0].get("title") or offers[0].get("public_id") or "?"
     return first if len(offers) == 1 else f"{first} и ещё {len(offers) - 1}"
+
+
+def offer_links(entries: list[dict] | None, empty: str = "❌ Не задано") -> str:
+    parts = []
+    for entry in entries or []:
+        name = escape(str(entry.get("title") or entry.get("public_id") or entry.get("id") or "?"))
+        public_id = entry.get("public_id")
+        parts.append(f'<a href="https://starvell.com/offers/{public_id}">{name}</a>' if public_id else name)
+    return ", ".join(parts) if parts else empty

@@ -33,3 +33,38 @@ class PageEnter(CallbackData, prefix="pgent"):
 class PageBack(CallbackData, prefix="pgback"):
     to: str
     page: int
+
+
+class AutoDeliveriesPagination(CallbackData, prefix="audepag"):
+    page: int
+
+class DelivGoodsPagination(CallbackData, prefix="godspag"):
+    page: int
+
+
+class IncludedCompleteOrdersPagination(CallbackData, prefix="incopag"):
+    page: int
+
+class ExcludedCompleteOrdersPagination(CallbackData, prefix="excopag"):
+    page: int
+
+
+class BumpCategoriesPagination(CallbackData, prefix="bucapag"):
+    page: int
+
+
+class FastSelFastReplyPagination(CallbackData, prefix="fsrpag"):
+    id: str
+    page: int
+
+class SelFastReplyPagination(CallbackData, prefix="srpag"):
+    id: str
+    page: int
+
+
+class ChatsPagination(CallbackData, prefix="chatpag"):
+    page: int
+
+class OrdersPagination(CallbackData, prefix="ordpag"):
+    page: int
+    st: int = -1

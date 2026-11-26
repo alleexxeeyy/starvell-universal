@@ -126,6 +126,7 @@ class StarvellBot:
         self._order_locks: dict[str, asyncio.Lock] = {}
         self._usernames: dict[str, str] = {}
         self._tasks: set[asyncio.Task] = set()
+        self._bump_lock: asyncio.Lock | None = None
 
     # --- общее ---
 
@@ -313,6 +314,23 @@ class StarvellBot:
             pass
         return None
 
+    async def find_order_chat(self, order: Order) -> str | None:
+        cached = self.cached_orders.get(order.id) or {}
+        if cached.get("chat_id"):
+            return cached["chat_id"]
+        if not order.buyer_id:
+            return None
+        for offset in (0, 50):
+            chats = await self.client.get_chats(limit=50, offset=offset)
+            for chat in chats:
+                if any(user.id == order.buyer_id for user in chat.participants):
+                    user = chat.interlocutor(self.client.id)
+                    self._remember_username(chat.id, user.username if user else None)
+                    return chat.id
+            if len(chats) < 50:
+                break
+        return None
+
     def _cache_order(self, order: Order, chat_id: str | None, buyer: str | None) -> dict:
         cached = self.cached_orders.setdefault(order.id, {})
         cached.update({
@@ -497,6 +515,22 @@ class StarvellBot:
             for entry in binding.get("offers") or []:
                 self.register_category(entry.get("game_id"), entry.get("category_id"), entry.get("title"))
 
+    async def add_bump_category(self, game_id: int, category_id: int, title: str | None = None):
+        self.register_category(game_id, category_id, title)
+        data.set("bump_categories", self.bump_categories)
+
+    async def remove_bump_category(self, game_id: int, category_id: int) -> bool:
+        removed = self.bump_categories.pop(f"{game_id}:{category_id}", None) is not None
+        data.set("bump_categories", self.bump_categories)
+        return removed
+
+    async def discover_categories(self) -> int:
+        before = len(self.bump_categories)
+        self._register_known_categories()
+        await self._discover_categories()
+        data.set("bump_categories", self.bump_categories)
+        return len(self.bump_categories) - before
+
     async def _discover_categories(self):
         try:
             orders = await self.client.get_orders(limit=50)
@@ -509,6 +543,11 @@ class StarvellBot:
                 self.register_category(details.game.id, details.category.id, details.title)
 
     async def bump_offers(self, force: bool = False) -> list[tuple[str, float | None]]:
+        # из цикла и из TG одновременно не поднимаем
+        async with self._bump_lock:
+            return await self._bump_offers(force)
+
+    async def _bump_offers(self, force: bool) -> list[tuple[str, float | None]]:
         results = []
         now = time.time()
         for key, cat in list(self.bump_categories.items()):
@@ -793,6 +832,7 @@ class StarvellBot:
 
         self.loop = asyncio.get_running_loop()
         self._outbox = asyncio.PriorityQueue()
+        self._bump_lock = asyncio.Lock()
         await self.client.refresh()
         account_pid = acquire_account_lock(str(self.client.id))
         if account_pid is not None:

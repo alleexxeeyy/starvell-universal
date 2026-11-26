@@ -6,7 +6,7 @@ from settings import Settings as sett
 
 from .. import templates as templ
 from .. import callback_datas as calls
-from ..helpful import throw_float_message, do_auth
+from ..helpful import throw_float_message, do_auth, sv_call, get_svbot
 
 
 router = Router()
@@ -53,6 +53,28 @@ async def callback_menu_navigation(callback: CallbackQuery, callback_data: calls
     elif to == "other":
         await throw_float_message(
             state, callback.message, templ.other_text(), templ.other_kb(), callback
+        )
+
+    elif to == "complete":
+        await throw_float_message(
+            state, callback.message, templ.complete_text(), templ.complete_kb(), callback
+        )
+    elif to == "bump":
+        data = await state.get_data()
+        await throw_float_message(
+            state, callback.message, templ.bump_text(), templ.bump_kb(data.get("bump_last_page", 0)), callback
+        )
+    elif to == "profile":
+        try:
+            svbot = get_svbot()
+            profile = await sv_call(svbot.account.refresh())
+        except Exception as e:
+            return await throw_float_message(
+                state, callback.message, templ.profile_float_text(f"❌ Не удалось получить профиль: {e}"),
+                templ.back_kb(calls.MenuNavigation(to="default").pack()), callback
+            )
+        await throw_float_message(
+            state, callback.message, templ.profile_text(profile), templ.profile_kb(), callback
         )
 
 @router.callback_query(calls.PlaceholdersNavigation.filter())

@@ -27,15 +27,27 @@ def menu_kb():
         InlineKeyboardButton(text="❗ Команды", callback_data=calls.CustomCommandsPagination(page=0).pack()),
         ],
         [
-        InlineKeyboardButton(text="⚡ Быстрые ответы", callback_data=calls.FastRepliesPagination(page=0).pack()),
-        InlineKeyboardButton(text="🔔 Уведомления", callback_data=calls.MenuNavigation(to="notifications").pack()),
+        InlineKeyboardButton(text="🚀 Авто-выдача", callback_data=calls.AutoDeliveriesPagination(page=0).pack()),
+        InlineKeyboardButton(text="⬆️ Авто-поднятие", callback_data=calls.MenuNavigation(to="bump").pack()),
         ],
         [
-        InlineKeyboardButton(text="🔧 Прочее", callback_data=calls.MenuNavigation(to="other").pack()),
-        InlineKeyboardButton(text="🚫 Чёрный список", callback_data=calls.BlacklistPagination(page=0).pack()),
+        InlineKeyboardButton(text="☑️ Подтверждение", callback_data=calls.MenuNavigation(to="complete").pack()),
+        InlineKeyboardButton(text="⚡ Быстрые ответы", callback_data=calls.FastRepliesPagination(page=0).pack()),
         ],
+        [
+        InlineKeyboardButton(text="🔔 Уведомления", callback_data=calls.MenuNavigation(to="notifications").pack()),
+        InlineKeyboardButton(text="🔧 Прочее", callback_data=calls.MenuNavigation(to="other").pack()),
+        ],
+        [InlineKeyboardButton(text="🚫 Чёрный список", callback_data=calls.BlacklistPagination(page=0).pack())],
         [InlineKeyboardButton(text="━━━  УПРАВЛЕНИЕ  ━━━", callback_data="null_answer")],
-        [InlineKeyboardButton(text="📊 Статистика", callback_data=calls.StatsNavigation(to="day").pack())],
+        [
+        InlineKeyboardButton(text="👤 Профиль", callback_data=calls.MenuNavigation(to="profile").pack()),
+        InlineKeyboardButton(text="📊 Статистика", callback_data=calls.StatsNavigation(to="day").pack()),
+        ],
+        [
+        InlineKeyboardButton(text="💬 Чаты", callback_data=calls.ChatsPagination(page=0).pack()),
+        InlineKeyboardButton(text="📋 Заказы", callback_data=calls.OrdersPagination(page=0).pack()),
+        ],
         [InlineKeyboardButton(text="━━━  СИСТЕМА  ━━━", callback_data="null_answer")],
         [
         InlineKeyboardButton(text="🔃 Обновления", callback_data=calls.MenuNavigation(to="updates").pack()),

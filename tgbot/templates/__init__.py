@@ -34,3 +34,18 @@ from .fast_replies import *
 
 from .releases import *
 from .release import *
+
+from .delivs import *
+from .deliv_page import *
+from .deliv_goods import *
+
+from .complete import *
+from .complete_lists import *
+from .bump import *
+
+from .sel_fast_reply import *
+from .profile import *
+from .chats import *
+from .chat import *
+from .orders import *
+from .order import *

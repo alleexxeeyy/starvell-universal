@@ -70,54 +70,11 @@ async def callback_switch_notifications_enabled(callback: CallbackQuery, state: 
     )
 
 
-@router.callback_query(F.data == "switch_notifications_new_user_message")
-async def callback_switch_notifications_new_user_message(callback: CallbackQuery, state: FSMContext):
+@router.callback_query(calls.SwitchNotificationEvent.filter())
+async def callback_switch_notification_event(callback: CallbackQuery, callback_data: calls.SwitchNotificationEvent, state: FSMContext):
     config = sett.get("config")
-    config["starvell"]["notifications"]["events"]["new_user_message"] = not config["starvell"]["notifications"]["events"]["new_user_message"]
-    sett.set("config", config)
-
-    return await callback_menu_navigation(
-        callback, calls.MenuNavigation(to="notifications"), state
-    )
-
-
-@router.callback_query(F.data == "switch_notifications_new_system_message")
-async def callback_switch_notifications_new_system_message(callback: CallbackQuery, state: FSMContext):
-    config = sett.get("config")
-    config["starvell"]["notifications"]["events"]["new_system_message"] = not config["starvell"]["notifications"]["events"]["new_system_message"]
-    sett.set("config", config)
-
-    return await callback_menu_navigation(
-        callback, calls.MenuNavigation(to="notifications"), state
-    )
-
-
-@router.callback_query(F.data == "switch_notifications_new_order")
-async def callback_switch_notifications_new_order(callback: CallbackQuery, state: FSMContext):
-    config = sett.get("config")
-    config["starvell"]["notifications"]["events"]["new_order"] = not config["starvell"]["notifications"]["events"]["new_order"]
-    sett.set("config", config)
-
-    return await callback_menu_navigation(
-        callback, calls.MenuNavigation(to="notifications"), state
-    )
-
-
-@router.callback_query(F.data == "switch_notifications_new_review")
-async def callback_switch_notifications_new_review(callback: CallbackQuery, state: FSMContext):
-    config = sett.get("config")
-    config["starvell"]["notifications"]["events"]["new_review"] = not config["starvell"]["notifications"]["events"]["new_review"]
-    sett.set("config", config)
-
-    return await callback_menu_navigation(
-        callback, calls.MenuNavigation(to="notifications"), state
-    )
-
-
-@router.callback_query(F.data == "switch_notifications_order_status_changed")
-async def callback_switch_notifications_order_status_changed(callback: CallbackQuery, state: FSMContext):
-    config = sett.get("config")
-    config["starvell"]["notifications"]["events"]["order_status_changed"] = not config["starvell"]["notifications"]["events"]["order_status_changed"]
+    events = config["starvell"]["notifications"]["events"]
+    events[callback_data.key] = not events.get(callback_data.key, False)
     sett.set("config", config)
 
     return await callback_menu_navigation(

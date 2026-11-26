@@ -286,3 +286,91 @@ async def throw_float_message(
         await state.update_data(accent_message_id=mess.message_id)
 
     return mess
+
+MAX_SHOWN_OFFER_ERRORS = 10
+
+
+def get_svbot():
+    from svbot.starvellbot import get_starvell_bot
+
+    svbot = get_starvell_bot()
+    if svbot is None or svbot.loop is None or not svbot.loop.is_running():
+        raise Exception("❌ Аккаунт Starvell ещё не подключён, попробуйте позже")
+    return svbot
+
+
+async def sv_call(coro):
+    try:
+        svbot = get_svbot()
+    except Exception:
+        coro.close()
+        raise
+    return await svbot.call(coro)
+
+
+def set_bot_setting(name: str, value):
+    from settings import Settings as sett
+    from svbot.starvellbot import get_starvell_bot
+
+    sett.set(name, value)
+    svbot = get_starvell_bot()
+    if svbot is not None and hasattr(svbot, name):
+        # сразу отдаём ядру, не дожидаясь перечитывания раз в 3 секунды: иначе выдача может затереть правку
+        setattr(svbot, name, value)
+
+
+async def resolve_offer_lines(lines: list[str]) -> tuple[list, list[str]]:
+    from html import escape
+    from svbot.deliveries import parse_offer_ref
+
+    svbot = get_svbot()
+    offers, errors, seen = [], [], set()
+    for line in lines:
+        public_id = parse_offer_ref(line)
+        if not public_id:
+            errors.append(f"<code>{escape(line[:60])}</code> - не ссылка на лот")
+            continue
+        if public_id in seen:
+            continue
+        seen.add(public_id)
+        try:
+            offer = await svbot.call(svbot.account.get_offer(public_id))
+        except Exception as e:
+            errors.append(f"<code>{public_id}</code> - {escape(str(e)[:80])}")
+            continue
+        if offer.user_id is not None and svbot.account.id is not None and offer.user_id != svbot.account.id:
+            errors.append(f"<code>{public_id}</code> - это не ваш лот")
+            continue
+        offers.append(offer)
+    return offers, errors
+
+
+def _offer_errors_block(errors: list[str]) -> str:
+    shown = errors[:MAX_SHOWN_OFFER_ERRORS]
+    block = "\n".join(f"・ {error}" for error in shown)
+    if len(errors) > len(shown):
+        block += f"\n・ ...и ещё {len(errors) - len(shown)}"
+    return block
+
+
+def offers_report(entries: list[dict], errors: list[str], one: str, many: str) -> str:
+    from svbot.deliveries import offer_links
+
+    if not entries:
+        raise Exception(
+            "❌ Не удалось добавить ни одного лота:"
+            f"\n\n{_offer_errors_block(errors)}"
+        )
+
+    if len(entries) == 1:
+        text = one.format(name=offer_links(entries, "-"))
+    else:
+        text = many.format(count=len(entries))
+
+    if errors:
+        text += (
+            f"\n\n⚠️ Не удалось добавить <b>{len(errors)}</b>:"
+            f"\n{_offer_errors_block(errors)}"
+        )
+    return text
+

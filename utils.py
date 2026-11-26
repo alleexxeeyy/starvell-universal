@@ -11,8 +11,10 @@ from urllib.parse import urlparse
 from logging import getLogger
 from colorama import Fore
 from datetime import datetime, timedelta, timezone
+from collections import Counter
 
 from settings import Settings as sett
+from data import Data as data
 
 
 logger = getLogger("universal")
@@ -512,6 +514,41 @@ def diagnose_starvell() -> dict | None:
     return None
 
 
+def _order_date(order: dict) -> datetime | None:
+    try:
+        dt = datetime.fromisoformat(str(order.get("created_at")).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _period_stats(orders: list[dict]) -> dict:
+    completed = [o for o in orders if o.get("status") == "COMPLETED"]
+    refunded = [o for o in orders if o.get("status") == "REFUND"]
+    active = [o for o in orders if o.get("status") == "CREATED"]
+    titles = Counter(o.get("title") for o in orders if o.get("title"))
+    return {
+        "orders": len(orders),
+        "active": len(active),
+        "completed": len(completed),
+        "refunded": len(refunded),
+        "profit": round(sum(float(o.get("base_price") or 0) for o in completed), 2),
+        "best": escape_html(titles.most_common(1)[0][0]) if titles else "-",
+    }
+
+
 def get_stats():
-    empty = {"orders": 0, "active": 0, "completed": 0, "refunded": 0, "profit": 0, "best": "-"}
-    return {period: dict(empty) for period in ("day", "week", "month", "all")}
+    cached_orders: dict = data.get("cached_orders") or {}
+    now = datetime.now(timezone.utc)
+    dated = [(o, _order_date(o)) for o in cached_orders.values() if isinstance(o, dict)]
+
+    def since(days: int) -> list[dict]:
+        border = now - timedelta(days=days)
+        return [o for o, dt in dated if dt is not None and dt >= border]
+
+    return {
+        "day": _period_stats(since(1)),
+        "week": _period_stats(since(7)),
+        "month": _period_stats(since(30)),
+        "all": _period_stats([o for o, _ in dated]),
+    }

@@ -8,6 +8,8 @@ from .states_messages import router as states_messages_router
 from .states_comms import router as states_comms_router
 from .states_blacklist import router as states_blacklist_router
 from .states_pages import router as states_pages_router
+from .states_actions import router as states_actions_router
+from .states_auto import router as states_auto_router
 
 
 router = Router()
@@ -18,5 +20,7 @@ router.include_routers(
     states_messages_router,
     states_comms_router,
     states_blacklist_router,
-    states_pages_router
+    states_pages_router,
+    states_actions_router,
+    states_auto_router
 )

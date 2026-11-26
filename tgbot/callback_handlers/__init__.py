@@ -9,6 +9,8 @@ from .actions_switch import router as actions_switch_router
 from .actions_other import router as actions_other_router
 from .actions_confirm import router as actions_confirm_router
 from .actions_configs import router as actions_configs_router
+from .actions_starvell import router as actions_starvell_router
+from .actions_auto import router as actions_auto_router
 
 
 router = Router()
@@ -21,4 +23,6 @@ router.include_routers(
     actions_other_router,
     actions_confirm_router,
     actions_configs_router,
+    actions_starvell_router,
+    actions_auto_router,
 )

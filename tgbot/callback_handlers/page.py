@@ -8,7 +8,7 @@ from core.blacklist import get_blacklist
 
 from .. import templates as templ
 from .. import callback_datas as calls
-from ..helpful import throw_float_message
+from ..helpful import throw_float_message, sv_call, get_svbot
 
 
 router = Router()
@@ -132,3 +132,102 @@ async def callback_release_page(callback: CallbackQuery, callback_data: calls.Re
         reply_markup=templ.release_kb(last_page),
         callback=callback
     )
+
+
+@router.callback_query(calls.AutoDeliveryPage.filter())
+async def callback_auto_delivery_page(callback: CallbackQuery, callback_data: calls.AutoDeliveryPage, state: FSMContext):
+    from settings import Settings as sett
+
+    await state.set_state(None)
+    index = callback_data.index
+    data = await state.get_data()
+    last_page = data.get("last_page", 0)
+
+    if index >= len(sett.get("auto_deliveries")):
+        return await throw_float_message(
+            state=state,
+            message=callback.message,
+            text=templ.deliv_float_text("❌ Авто-выдача не найдена, возможно её уже удалили"),
+            reply_markup=templ.back_kb(calls.AutoDeliveriesPagination(page=last_page).pack()),
+            callback=callback
+        )
+    await state.update_data(auto_delivery_index=index)
+
+    await throw_float_message(
+        state=state,
+        message=callback.message,
+        text=templ.deliv_page_text(index),
+        reply_markup=templ.deliv_page_kb(index, last_page),
+        callback=callback
+    )
+
+
+async def render_chat_page(message, state: FSMContext, chat_id: str, callback: CallbackQuery = None):
+    await state.update_data(chat_id=chat_id)
+    try:
+        svbot = get_svbot()
+        chat = await sv_call(svbot.account.get_chat(chat_id))
+        page = await sv_call(svbot.account.get_messages(chat_id, limit=15))
+    except Exception as e:
+        return await throw_float_message(
+            state=state,
+            message=message,
+            text=templ.chat_float_text(f"❌ Не удалось открыть чат: {e}"),
+            reply_markup=templ.back_kb("back_to_chats"),
+            callback=callback
+        )
+
+    user = chat.interlocutor(svbot.account.id)
+    svbot._remember_username(chat_id, user.username if user else None)
+    msgs = sorted(page.items, key=lambda m: m.created_at.timestamp() if m.created_at else 0)
+    await throw_float_message(
+        state=state,
+        message=message,
+        text=templ.chat_text(chat, msgs, svbot.account.id),
+        reply_markup=templ.chat_kb(chat_id),
+        callback=callback
+    )
+
+
+@router.callback_query(calls.ChatPage.filter())
+async def callback_chat_page(callback: CallbackQuery, callback_data: calls.ChatPage, state: FSMContext):
+    await state.set_state(None)
+    await render_chat_page(callback.message, state, callback_data.id, callback)
+
+
+async def render_order_page(message, state: FSMContext, order_id: str, callback: CallbackQuery = None):
+    data = await state.get_data()
+    last_page = data.get("orders_last_page", 0)
+    st = data.get("orders_status", -1)
+    await state.update_data(order_id=order_id)
+    try:
+        svbot = get_svbot()
+        order = await sv_call(svbot.account.get_order(order_id))
+        try:
+            chat_id = await sv_call(svbot.find_order_chat(order))
+        except Exception:
+            chat_id = None
+    except Exception as e:
+        return await throw_float_message(
+            state=state,
+            message=message,
+            text=templ.order_float_text(f"❌ Не удалось получить заказ: {e}"),
+            reply_markup=templ.back_kb(calls.OrdersPagination(page=last_page, st=st).pack()),
+            callback=callback
+        )
+
+    cached = svbot.cached_orders.get(order.id) or {}
+    buyer = (order.user.username if order.user else None) or cached.get("buyer") or svbot.chat_username(chat_id)
+    await throw_float_message(
+        state=state,
+        message=message,
+        text=templ.order_text(order, buyer, cached),
+        reply_markup=templ.order_kb(order, chat_id, last_page, st),
+        callback=callback
+    )
+
+
+@router.callback_query(calls.OrderPage.filter())
+async def callback_order_page(callback: CallbackQuery, callback_data: calls.OrderPage, state: FSMContext):
+    await state.set_state(None)
+    await render_order_page(callback.message, state, callback_data.id, callback)

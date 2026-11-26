@@ -18,6 +18,11 @@ class SetupStates(StatesGroup):
     waiting_for_proxy = State()
 
 
+class ActionsStates(StatesGroup):
+    waiting_for_fast_answer_message = State()
+    waiting_for_chat_answer_message = State()
+
+
 class SettingsStates(StatesGroup):
     waiting_for_session = State()
     waiting_for_user_agent = State()
@@ -53,3 +58,22 @@ class BlacklistStates(StatesGroup):
     waiting_for_new_blacklist_username = State()
     waiting_for_new_blacklist_reason = State()
     waiting_for_chat_blacklist_reason = State()
+
+
+class AutoDeliveriesStates(StatesGroup):
+    waiting_for_new_auto_delivery_offers = State()
+    waiting_for_new_auto_delivery_message = State()
+    waiting_for_new_auto_delivery_goods = State()
+
+    waiting_for_auto_delivery_offers = State()
+    waiting_for_auto_delivery_message = State()
+    waiting_for_auto_delivery_goods_add = State()
+
+
+class CompleteOrdersStates(StatesGroup):
+    waiting_for_new_included_complete_offers = State()
+    waiting_for_new_excluded_complete_offers = State()
+
+
+class BumpStates(StatesGroup):
+    waiting_for_bump_offer = State()

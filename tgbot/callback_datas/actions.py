@@ -40,3 +40,40 @@ class RememberChatId(CallbackData, prefix="remchat"):
 class RememberOrderId(CallbackData, prefix="remord"):
     id: str
     do: str
+
+
+class OrderAction(CallbackData, prefix="ordact"):
+    id: str
+    do: str
+
+
+class SendFastReply(CallbackData, prefix="sere"):
+    id: str
+    index: int
+
+class FastSendFastReply(CallbackData, prefix="fsere"):
+    id: str
+    index: int
+
+
+class SetNewDelivPiece(CallbackData, prefix="sepiece"):
+    val: bool
+
+class DeleteDelivGood(CallbackData, prefix="delgod"):
+    index: int
+
+
+class DeleteIncludedCompleteOrder(CallbackData, prefix="delinco"):
+    index: int
+
+class DeleteExcludedCompleteOrder(CallbackData, prefix="delexco"):
+    index: int
+
+
+class DeleteBumpCategory(CallbackData, prefix="delbuca"):
+    game: int
+    cat: int
+
+
+class SwitchNotificationEvent(CallbackData, prefix="swnoev"):
+    key: str
