@@ -33,6 +33,7 @@ class NotificationType(StrEnum):
 
 class OfferType(StrEnum):
     LOT = "LOT"
+    GAME_CURRENCY = "GAME_CURRENCY"
 
 
 class AvailabilityUnit(StrEnum):
