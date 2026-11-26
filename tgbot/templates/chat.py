@@ -13,6 +13,9 @@ _NOTIFICATIONS = {
     NotificationType.ORDER_SELLER_COMPLETED: "Продавец выполнил заказ",
     NotificationType.ORDER_REFUND: "Оформлен возврат",
     NotificationType.ORDER_NOT_PAID_REMINDER: "Напоминание об оплате",
+    NotificationType.ORDER_COMPLETED: "Покупатель подтвердил заказ",
+    NotificationType.REVIEW_CREATED: "Новый отзыв",
+    NotificationType.ORDER_REFUND_REASON_SET: "Указана причина возврата",
 }
 
 MAX_CHAT_TEXT = 3800

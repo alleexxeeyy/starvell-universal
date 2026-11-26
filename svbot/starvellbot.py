@@ -73,6 +73,7 @@ NOTIFICATION_LABELS = {
     "ORDER_NOT_PAID_REMINDER": "Напоминание об оплате",
     "ORDER_COMPLETED": "Покупатель подтвердил заказ",
     "REVIEW_CREATED": "Новый отзыв",
+    "ORDER_REFUND_REASON_SET": "Указана причина возврата",
 }
 
 PRIORITY_DELIVERY = 0
