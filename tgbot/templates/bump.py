@@ -63,7 +63,7 @@ def bump_kb(page=0):
         title = str(cat.get("title") or f"{cat['game_id']}:{cat['category_id']}")
         title_frmtd = title[:28] + ("..." if len(title) > 28 else "")
         disabled = cat.get("disabled")
-        status = "выключена" if disabled else _left(cat.get("next_time", 0))
+        status = "выключена" if disabled else "нет лотов" if cat.get("empty") else _left(cat.get("next_time", 0))
         rows.append([
             InlineKeyboardButton(text=f"{'⏸ ' if disabled else ''}{title_frmtd} ・ {status}", callback_data="null_answer"),
             InlineKeyboardButton(text="▶️" if disabled else "⏸", callback_data=calls.DeleteBumpCategory(game=cat["game_id"], cat=cat["category_id"]).pack()),

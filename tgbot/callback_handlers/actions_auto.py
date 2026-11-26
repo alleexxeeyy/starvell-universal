@@ -432,6 +432,8 @@ async def callback_bump_offers_now(callback: CallbackQuery, state: FSMContext):
             title = escape(str((svbot.bump_categories.get(key) or {}).get("title") or key))
             if wait is None:
                 lines.append(f"✅ {title}")
+            elif wait < 0:
+                lines.append(f"📭 {title} - нет активных лотов")
             else:
                 lines.append(f"⏳ {title} - через {int(wait) // 3600} ч. {int(wait) % 3600 // 60} мин.")
         await throw_float_message(

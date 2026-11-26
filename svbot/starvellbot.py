@@ -26,6 +26,7 @@ from starvellapi import (
     BalanceUpdatedEvent,
     StarvellError,
 )
+from starvellapi.errors import APIError
 from starvellapi.models import Message, Order
 
 from __init__ import VERSION
@@ -62,6 +63,8 @@ EVENTS_STATE_PATH = "bot_data/starvell_events.json"
 MESSAGE_LIMIT = 1000
 STAFF_ROLES = {"MODERATOR", "SUPPORT", "ARBITRAGE", "ADMIN"}
 BUMP_COOLDOWN = 4 * 60 * 60
+BUMP_EMPTY_RECHECK = 60 * 60
+BUMP_EMPTY = -1.0
 
 NOTIFICATION_LABELS = {
     "ORDER_PAYMENT": "Заказ оплачен",
@@ -640,10 +643,23 @@ class StarvellBot:
                 continue
             try:
                 wait = await self.client.bump_offers(cat["game_id"], [cat["category_id"]])
+            except APIError as e:
+                if e.status_code == 404 or "не найден" in (e.message or "").lower():
+                    # в категории нет активных лотов: не ошибка, проверим позже
+                    if not cat.get("empty"):
+                        logger.info(f"{Fore.YELLOW}В категории {cat.get('title') or key} нет активных лотов, поднимать нечего")
+                    cat["empty"] = True
+                    cat["next_time"] = now + BUMP_EMPTY_RECHECK
+                    results.append((key, BUMP_EMPTY))
+                    continue
+                logger.error(f"{Fore.LIGHTRED_EX}Ошибка при поднятии лотов в {cat.get('title') or key}: {Fore.WHITE}{e}")
+                cat["next_time"] = now + 600
+                continue
             except StarvellError as e:
                 logger.error(f"{Fore.LIGHTRED_EX}Ошибка при поднятии лотов в {cat.get('title') or key}: {Fore.WHITE}{e}")
                 cat["next_time"] = now + 600
                 continue
+            cat.pop("empty", None)
             if wait is None:
                 cat["next_time"] = now + BUMP_COOLDOWN
                 cat["last_bump"] = now
