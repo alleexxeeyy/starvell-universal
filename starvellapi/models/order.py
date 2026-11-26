@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Annotated, Any
+
+from pydantic import model_validator
 
 from .base import StarvellModel, Tolerant, TolerantList, enum_or_str
 from .enums import OrderStatus
@@ -9,11 +12,21 @@ from .offer import OfferDetails
 from .user import UserShort
 
 
+_SECRET_ARG = re.compile(r"парол|password|pass\b|pin|пин-?код|\bкод\b|code|токен|token|секрет|secret|2fa|otp", re.IGNORECASE)
+
+
 class OrderArg(StarvellModel):
     id: Tolerant[str] = None
     value: Tolerant[str] = None
     name_ru: Tolerant[str] = None
     is_sensitive: bool = False
+
+    @model_validator(mode="after")
+    def _guess_sensitive(self):
+        # в событии сокета isSensitive не приходит - пароль и коды прячем по названию поля
+        if not self.is_sensitive and self.name_ru and _SECRET_ARG.search(self.name_ru):
+            self.is_sensitive = True
+        return self
 
     @property
     def shown_value(self) -> str:

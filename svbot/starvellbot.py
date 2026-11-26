@@ -77,6 +77,26 @@ PRIORITY_NORMAL = 1
 PRIORITY_LOW = 2
 
 
+def order_link(order_id: str | None, text: str) -> str:
+    return f'<a href="https://starvell.com/order/{order_id}">{text}</a>' if order_id else text
+
+
+def chat_link(chat_id: str | None, text: str) -> str:
+    return f'<a href="https://starvell.com/chat/{chat_id}">{text}</a>' if chat_id else text
+
+
+def rub(value) -> str:
+    return f"{float(value or 0):g}₽"
+
+
+def order_args_text(order: Order) -> str:
+    lines = []
+    for arg in order.order_args:
+        value = escape(arg.value or "")
+        lines.append(f"・ <b>{escape(arg.name_ru or 'Поле')}:</b> " + (f"<tg-spoiler>{value}</tg-spoiler>" if arg.is_sensitive else value))
+    return "\n".join(lines)
+
+
 def get_starvell_bot() -> StarvellBot | None:
     if hasattr(StarvellBot, "instance"):
         return getattr(StarvellBot, "instance")
@@ -408,8 +428,9 @@ class StarvellBot:
                 return False
             if not chat_id:
                 self.notify("out_of_stock", log_text(
-                    f"⚠️ Не выдал заказ {escape(order.short_id or '')}",
-                    "Не нашёл чат с покупателем. Выдайте товар вручную."
+                    f"⚠️ Авто-выдача не сработала в {order_link(order.id, 'заказе #' + escape(order.short_id or ''))}",
+                    f"<b>🛍️ Лот:</b> {escape(order.title or '-')}"
+                    f"\n\n💬 Не нашёл чат с покупателем, выдайте товар вручную"
                 ), log_order_kb(order.id))
                 return False
 
@@ -448,8 +469,10 @@ class StarvellBot:
                         cached.pop("delivery", None)
                         self._save_orders()
                     self.notify("out_of_stock", log_text(
-                        f"❌ Не удалось выдать заказ {escape(order.short_id or '')}",
-                        "Сообщение с товаром не отправилось. Проверьте чат и выдайте вручную."
+                        f"❌ Не удалось выдать товар в {order_link(order.id, 'заказе #' + escape(order.short_id or ''))}",
+                        f"<b>👤 Покупатель:</b> {escape(buyer or '-')}"
+                        f"\n<b>🛍️ Лот:</b> {escape(order.title or '-')}"
+                        f"\n\n📨 Сообщение с товаром не отправилось, проверьте чат и выдайте вручную"
                     ), log_new_order_kb(chat_id, order.id))
                     return False
                 delivery["sent"] = i + 1
@@ -500,8 +523,11 @@ class StarvellBot:
     async def _out_of_stock(self, order: Order, chat_id: str, left: int, need: int):
         logger.warning(f"{Fore.YELLOW}Заказ {order.short_id}: товары для автовыдачи закончились (осталось {left}, нужно {need})")
         self.notify("out_of_stock", log_text(
-            f"📭 Закончился товар для заказа {escape(order.short_id or '')}",
-            f"<b>Лот:</b> {escape(order.title or '-')}\n<b>Нужно:</b> {need} шт., <b>осталось:</b> {left} шт.\n\nВыдайте вручную и пополните автовыдачу."
+            f"📭 Закончились товары для {order_link(order.id, 'заказа #' + escape(order.short_id or ''))}",
+            f"<b>🛍️ Лот:</b> {escape(order.title or '-')}"
+            f"\n<b>🛒 Нужно:</b> {need} шт."
+            f"\n<b>📦 Осталось:</b> {left} шт."
+            f"\n\n⚠️ Выдайте товар вручную и пополните авто-выдачу"
         ), log_new_order_kb(chat_id, order.id))
         text = self.msg("out_of_stock", order=msg_order(order))
         if text:
@@ -735,23 +761,27 @@ class StarvellBot:
                 return
             if not message.order_id:
                 self.notify("new_system_message", log_text(
-                    "🔔 Системное сообщение Starvell", escape(message.text or "-")
+                    f"🔔 Системное сообщение в {chat_link(message.chat_id, 'чате')}",
+                    f"<blockquote>{escape(message.text or '') or '<i>Без текста</i>'}</blockquote>"
                 ), log_new_mess_kb(message.chat_id))
             return
         if is_staff:
+            who = "модерации" if "MODERATOR" in (author.roles or []) else "поддержки"
             self.notify("moderation", log_text(
-                f"🛡 Сообщение от {'модерации' if 'MODERATOR' in (author.roles or []) else 'поддержки'} Starvell",
-                f"<b>{escape(author.username or '-')}:</b>\n<blockquote>{escape(message.text or '-')}</blockquote>"
+                f"🛡 Сообщение от {who} Starvell в {chat_link(message.chat_id, 'чате')}",
+                f"<b>👮 {escape(author.username or '-')}:</b> <blockquote>{escape(message.text or '') or '<i>Без текста</i>'}</blockquote>"
             ), log_new_mess_kb(message.chat_id))
             return
         if author is None or author.id == self.client.id:
             return
 
         blacklisted = is_blacklisted(author.username)
-        images = f"\n🖼 Изображений: {len(message.images)}" if message.images else ""
+        text = escape(message.text or "")
+        if message.images:
+            text = f"<i>*Изображений: {len(message.images)}*</i>" + (f" {text}" if text else "")
         self.notify("new_user_message", log_text(
-            f"💬 Новое сообщение от {escape(author.username or '-')}" + (" (в ЧС)" if blacklisted else ""),
-            f"<blockquote>{escape(message.text or '')}</blockquote>{images}"
+            f"{'🚫 ' if blacklisted else ''}💬 Новое сообщение в {chat_link(message.chat_id, 'чате')}{' (покупатель в ЧС)' if blacklisted else ''}",
+            f"<b>{escape(author.username or '-')}:</b> <blockquote>{text or '<i>Без сообщения</i>'}</blockquote>"
         ), log_new_mess_kb(message.chat_id))
         if blacklisted:
             return
@@ -816,9 +846,10 @@ class StarvellBot:
 
         content = escape(review.content or "") if review else ""
         self.notify("new_review", log_text(
-            f"🌟 Новый отзыв {stars}",
-            f"<b>Покупатель:</b> {escape(buyer)}\n<b>Заказ:</b> {escape(short_id)}"
-            + (f"\n<blockquote>{content}</blockquote>" if content else "")
+            f"🌟 Новый отзыв в {order_link(order_id, f'заказе #{escape(short_id)}')}",
+            f"<b>👤 Оставил:</b> {escape(buyer)}"
+            f"\n<b>✨ Оценка:</b> {stars}"
+            f"\n<b>🏷️ Текст:</b> " + (f"<blockquote>{content}</blockquote>" if content else "<i>Без текста</i>")
             + ("\n\n✅ Бот ответил на отзыв" if replied else "")
         ), log_order_kb(order_id, message.chat_id))
 
@@ -843,14 +874,15 @@ class StarvellBot:
             await self._handle_blacklisted_order(order, chat_id, buyer, entry)
             return
 
-        catch_up = " (найден после перерыва)" if event.catch_up else ""
-        args = "\n".join(f"<b>{escape(a.name_ru or 'Поле')}:</b> {'<tg-spoiler>' + escape(a.value or '') + '</tg-spoiler>' if a.is_sensitive else escape(a.value or '')}"
-                         for a in order.order_args)
+        args = order_args_text(order)
         self.notify("new_order", log_text(
-            f"🛒 Новый заказ {escape(order.short_id or '')}{catch_up}",
-            f"<b>Покупатель:</b> {escape(buyer or '-')}\n<b>Лот:</b> {escape(order.title or '-')}\n"
-            f"<b>Количество:</b> {order.quantity or 1}\n<b>Сумма:</b> {order.total_price or 0:g} ₽ (вам {order.base_price or 0:g} ₽)"
-            + (f"\n\n{args}" if args else "")
+            f"📋 Новый заказ {order_link(order.id, '#' + escape(order.short_id or ''))}",
+            f"<b>👤 Покупатель:</b> {escape(buyer or '-')}"
+            f"\n<b>🛍️ Лот:</b> {escape(order.title or '-')}"
+            f"\n<b>🛒 Количество:</b> {order.quantity or 1}"
+            f"\n<b>💰 Сумма:</b> {rub(order.total_price)} (вам {rub(order.base_price)})"
+            + (f"\n\n<b>📝 Данные покупателя:</b>\n{args}" if args else "")
+            + ("\n\n⏪ <i>Заказ найден после перерыва в работе бота</i>" if event.catch_up else "")
         ), log_new_order_kb(chat_id, order.id, completed=order.seller_completed_at is not None))
 
         buyer_user = MsgUser(order.buyer_id, buyer or "-")
@@ -882,10 +914,12 @@ class StarvellBot:
                 if text:
                     await self.send_message(chat_id, text)
         self.notify("new_order", log_text(
-            f"🚫 Заказ {escape(order.short_id or '')} от покупателя из ЧС",
-            f"<b>Покупатель:</b> {escape(buyer or '-')}\n<b>Причина:</b> {escape(entry.get('reason') or 'не указана')}\n"
-            f"<b>Лот:</b> {escape(order.title or '-')}\n<b>Сумма:</b> {order.total_price or 0:g} ₽\n\n"
-            + ("Деньги возвращены автоматически" if refunded else "Автовозврат выключен или не удался")
+            f"🚫 {order_link(order.id, 'Заказ #' + escape(order.short_id or ''))} от покупателя из ЧС",
+            f"<b>👤 Покупатель:</b> {escape(buyer or '-')}"
+            f"\n<b>📝 Причина ЧС:</b> {escape(entry.get('reason') or '') or 'не указана'}"
+            f"\n<b>🛍️ Лот:</b> {escape(order.title or '-')}"
+            f"\n<b>💰 Сумма:</b> {rub(order.total_price)}"
+            f"\n\n{'📦 Заказ автоматически возвращён' if refunded else '⚠️ Модули этот заказ не обрабатывают, решите вручную'}"
         ), log_blacklisted_order_kb(chat_id, order.id, buyer or "", refunded))
 
     async def _on_order_status(self, event: OrderSellerCompletedEvent | OrderCompletedEvent | OrderRefundedEvent | OrderStatusChangedEvent):
@@ -899,17 +933,20 @@ class StarvellBot:
         chat_id = event.chat_id or (cached or {}).get("chat_id")
 
         if isinstance(event, OrderSellerCompletedEvent):
-            status_frmtd = "отмечен выполненным"
+            status_frmtd = "Выполнен продавцом"
         elif isinstance(event, OrderCompletedEvent):
-            status_frmtd = "покупатель подтвердил"
+            status_frmtd = "Подтверждён покупателем"
         elif isinstance(event, OrderRefundedEvent):
-            status_frmtd = "возврат"
+            status_frmtd = "Возврат"
         else:
             status_frmtd = ORDER_STATUSES.get(order.status, str(order.status))
-        self.log_order_status(order, status_frmtd)
+        self.log_order_status(order, status_frmtd.lower())
+        buyer = (cached or {}).get("buyer")
         self.notify("order_status_changed", log_text(
-            f"🔄 Заказ {escape(order.short_id or '')}: {status_frmtd}",
-            f"<b>Лот:</b> {escape(order.title or '-')}\n<b>Сумма:</b> {order.total_price or 0:g} ₽"
+            f"🔃 Статус {order_link(order.id, 'заказа #' + escape(order.short_id or ''))} изменился на «{status_frmtd}»",
+            (f"<b>👤 Покупатель:</b> {escape(buyer)}\n" if buyer else "")
+            + f"<b>🛍️ Лот:</b> {escape(order.title or (cached or {}).get('title') or '-')}"
+            f"\n<b>💰 Сумма:</b> {rub(order.total_price or (cached or {}).get('price'))}"
         ), log_order_kb(order.id, chat_id))
 
         if not chat_id or is_blacklisted((cached or {}).get("buyer")):
@@ -922,8 +959,8 @@ class StarvellBot:
 
     async def _on_connection_status(self, event: ConnectionStatusEvent):
         titles = {
-            "unauthorized": ("🔐 Сессия Starvell недействительна", "Бот перестал получать события. Обновите Session в настройках авторизации."),
-            "bot_check": ("🛡 Starvell ограничил запросы", "Защита сайта не пропускает бота. Проверьте прокси или подождите."),
+            "unauthorized": ("🔐 Сессия Starvell недействительна", "⚠️ Бот перестал получать события. Обновите <b>Session</b> в разделе «🔒 Авторизация»"),
+            "bot_check": ("🛡 Starvell ограничил запросы", "⚠️ Защита сайта не пропускает бота. Проверьте прокси в разделе «🛜 Соединение» или подождите"),
         }
         if event.status in titles:
             title, text = titles[event.status]
@@ -934,7 +971,8 @@ class StarvellBot:
             self.client.me.balance.rub_balance = event.balance.rub_balance
             self._set_title()
         if event.balance.rub_balance is not None:
-            self.notify("balance_updated", log_text("💰 Баланс изменился", f"<b>Баланс:</b> {event.balance.rub_balance:g} ₽"), destroy_kb())
+            withdrawable = f"\n<b>👜 К выводу:</b> {rub(event.balance.withdrawable_rub_balance)}" if event.balance.withdrawable_rub_balance is not None else ""
+            self.notify("balance_updated", log_text("💰 Баланс изменился", f"<b>💰 Баланс:</b> {rub(event.balance.rub_balance)}{withdrawable}"), destroy_kb())
 
     # --- запуск ---
 

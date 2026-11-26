@@ -1,4 +1,5 @@
 import textwrap
+from html import escape
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from utils import github_str_to_dt
@@ -153,8 +154,7 @@ def log_offer_kb(public_id: str):
 
 def call_seller_text(username: str, chat_id: str):
     txt = textwrap.dedent(f"""
-        <b>🆘 {username} вызывает вас</b>
-        \n<a href="https://starvell.com/chat/{chat_id}">Перейти в диалог</a>
+        ❗ <b>{escape(username)}</b> вызывает вас в <a href="https://starvell.com/chat/{chat_id}">чат</a>
     """)
     return txt
 
