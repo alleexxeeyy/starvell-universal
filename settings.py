@@ -41,7 +41,7 @@ CONFIG = SettingsFile(
                 "all": True
             },
             "auto_bump_offers": {
-                "enabled": False
+                "enabled": True
             },
             "auto_review_replies": False,
             "notifications": {

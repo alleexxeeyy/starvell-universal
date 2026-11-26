@@ -14,13 +14,12 @@ def plholders_text(to):
             <b>👤 Аккаунт</b> (<code>account</code>):
 
             ・ <code>{account.id}</code> — ID аккаунта
-            ・ <code>{account.username}</code> — Юзернейм аккаунта
-            ・ <code>{account.email}</code> — Email аккаунта
-            ・ <code>{account.role}</code> — Роль аккаунта
-            ・ <code>{account.avatar_url}</code> — URL аватара
+            ・ <code>{account.username}</code> — Никнейм аккаунта
+            ・ <code>{account.balance}</code> — Баланс аккаунта (₽)
             ・ <code>{account.rating}</code> — Рейтинг аккаунта
             ・ <code>{account.reviews_count}</code> — Количество отзывов
-            ・ <code>{account.created_at}</code> — Дата регистрации
+
+            <i>Доступны во всех сообщениях и командах</i>
         """)
     elif to == "user":
         txt = textwrap.dedent("""
@@ -29,14 +28,9 @@ def plholders_text(to):
             <b>👤 Собеседник</b> (<code>user</code>):
 
             ・ <code>{user.id}</code> — ID пользователя
-            ・ <code>{user.username}</code> — Юзернейм пользователя
-            ・ <code>{user.role}</code> — Роль пользователя
-            ・ <code>{user.avatar_url}</code> — URL аватара
-            ・ <code>{user.is_online}</code> — Онлайн ли
-            ・ <code>{user.is_blocked}</code> — Заблокирован ли
-            ・ <code>{user.rating}</code> — Рейтинг пользователя
-            ・ <code>{user.reviews_count}</code> — Количество отзывов
-            ・ <code>{user.created_at}</code> — Дата регистрации
+            ・ <code>{user.username}</code> — Никнейм пользователя
+
+            <i>Доступны во всех сообщениях и командах, кроме сообщений о статусе заказа</i>
         """)
     elif to == "chat":
         txt = textwrap.dedent("""
@@ -45,38 +39,27 @@ def plholders_text(to):
             <b>💬 Чат</b> (<code>chat</code>):
 
             ・ <code>{chat.id}</code> — ID чата
-            ・ <code>{chat.type}</code> — Тип чата
-            ・ <code>{chat.status}</code> — Статус чата
-            ・ <code>{chat.user}</code> — Собеседник (<code>user</code>)
-            ・ <code>{chat.last_message}</code> — Последнее сообщение
+            ・ <code>{chat.link}</code> — Ссылка на чат
+
+            <i>Доступны в приветствии, командах, вызове продавца, сообщениях о заказе и авто-выдаче</i>
         """)
-    elif to == "deal":
+    elif to == "order":
         txt = textwrap.dedent("""
             <b>🏷️ Заменители</b>
             
-            <b>📋 Сделка</b> (<code>deal</code>):
+            <b>📋 Заказ</b> (<code>order</code>):
 
-            ・ <code>{deal.id}</code> — ID сделки
-            ・ <code>{deal.status}</code> — Статус сделки
-            ・ <code>{deal.user}</code> — Покупатель (<code>user</code>)
-            ・ <code>{deal.item}</code> — Товар (<code>item</code>)
-            ・ <code>{deal.created_at}</code> — Дата создания (покупки)
-            ・ <code>{deal.completed_at}</code> — Дата выполнения
-        """)
-    elif to == "item":
-        txt = textwrap.dedent("""
-            <b>🏷️ Заменители</b>
-            
-            <b>🛍️ Товар</b> (<code>item</code>):
+            ・ <code>{order.id}</code> — ID заказа
+            ・ <code>{order.short_id}</code> — Короткий номер заказа (как на сайте)
+            ・ <code>{order.title}</code> — Название лота
+            ・ <code>{order.quantity}</code> — Количество
+            ・ <code>{order.price}</code> — Сумма, которую заплатил покупатель (₽)
+            ・ <code>{order.base_price}</code> — Сумма, которую получите вы (₽)
+            ・ <code>{order.status}</code> — Статус заказа
+            ・ <code>{order.link}</code> — Ссылка на заказ
+            ・ <code>{order.date}</code> — Дата оплаты
 
-            ・ <code>{item.id}</code> — ID товара
-            ・ <code>{item.slug}</code> — Slug товара (имя в адресной строке)
-            ・ <code>{item.name}</code> — Название товара
-            ・ <code>{item.description}</code> — Описание товара
-            ・ <code>{item.price}</code> — Цена товара
-            ・ <code>{item.raw_price}</code> — Цена без учёта скидки
-            ・ <code>{item.game}</code> — Название игры товара
-            ・ <code>{item.category}</code> — Название категории игры
+            <i>Доступны в сообщениях о заказах, ответе на отзыв и авто-выдаче</i>
         """)
 
     return txt
@@ -86,8 +69,7 @@ def plholders_kb(to, by, last_page=0):
     sym1 = "・" if to == "account" else ""
     sym2 = "・" if to == "user" else ""
     sym3 = "・" if to == "chat" else ""
-    sym4 = "・" if to == "deal" else ""
-    sym5 = "・" if to == "item" else ""
+    sym4 = "・" if to == "order" else ""
 
     if by == "mess":
         cb = calls.MessagesPagination(page=last_page).pack()
@@ -102,9 +84,8 @@ def plholders_kb(to, by, last_page=0):
             ],
             [
             InlineKeyboardButton(text=f"{sym3} 💬 Чат {sym3}", callback_data=calls.PlaceholdersNavigation(to="chat", by=by).pack()),
-            InlineKeyboardButton(text=f"{sym4} 📋 Сделка {sym4}", callback_data=calls.PlaceholdersNavigation(to="deal", by=by).pack())
+            InlineKeyboardButton(text=f"{sym4} 📋 Заказ {sym4}", callback_data=calls.PlaceholdersNavigation(to="order", by=by).pack())
             ],
-            [InlineKeyboardButton(text=f"{sym5} 🛍️ Товар {sym5}", callback_data=calls.PlaceholdersNavigation(to="item", by=by).pack())],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=cb)],
         ]
     else:
