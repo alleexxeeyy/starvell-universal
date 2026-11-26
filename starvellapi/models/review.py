@@ -19,9 +19,17 @@ class Review(StarvellModel):
     rating: Tolerant[int] = None
     content: Tolerant[str] = None
     order_id: Tolerant[str] = None
+    order_short_id: Tolerant[str] = None
+    author_id: Tolerant[int] = None
+    recipient_id: Tolerant[int] = None
     author: Tolerant[UserShort] = None
-    response: Tolerant[ReviewResponse] = None
+    review_response: Tolerant[ReviewResponse] = None
     is_hidden: Tolerant[bool] = None
     is_not_counted: Tolerant[bool] = None
+    is_anonymous: Tolerant[bool] = None
     created_at: Tolerant[datetime] = None
     updated_at: Tolerant[datetime] = None
+
+    @property
+    def response(self) -> ReviewResponse | None:
+        return self.review_response

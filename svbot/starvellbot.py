@@ -68,6 +68,8 @@ NOTIFICATION_LABELS = {
     "ORDER_SELLER_COMPLETED": "Продавец выполнил заказ",
     "ORDER_REFUND": "Оформлен возврат",
     "ORDER_NOT_PAID_REMINDER": "Напоминание об оплате",
+    "ORDER_COMPLETED": "Покупатель подтвердил заказ",
+    "REVIEW_CREATED": "Новый отзыв",
 }
 
 PRIORITY_DELIVERY = 0
@@ -728,6 +730,9 @@ class StarvellBot:
 
         is_staff = bool(author and STAFF_ROLES & set(author.roles or []))
         if message.is_notification:
+            if message.notification_type == "REVIEW_CREATED" and message.order_id:
+                await self._on_new_review(message)
+                return
             if not message.order_id:
                 self.notify("new_system_message", log_text(
                     "🔔 Системное сообщение Starvell", escape(message.text or "-")
@@ -772,6 +777,50 @@ class StarvellBot:
             text = format_text("\n".join(commands[lowered]), user=msg_user(author), chat=msg_chat(message.chat_id),
                                account=msg_account(self.client.me))
             await self.send_message(message.chat_id, text)
+
+    async def find_review(self, order_id: str):
+        # отзыв появляется в списке не мгновенно - пара попыток
+        for attempt in range(3):
+            try:
+                for review in await self.client.get_reviews(limit=20):
+                    if review.order_id == order_id:
+                        return review
+            except StarvellError as e:
+                logger.warning(f"{Fore.LIGHTRED_EX}Не удалось получить отзывы: {Fore.WHITE}{e}")
+            await asyncio.sleep(3 * (attempt + 1))
+        return None
+
+    async def _on_new_review(self, message: Message):
+        order_id = message.order_id
+        cached = self.cached_orders.get(order_id) or {}
+        short_id = (message.metadata.order_short_id if message.metadata else None) or cached.get("short_id") or order_id
+        review = await self.find_review(order_id)
+        buyer = (review.author.username if review and review.author else None) or cached.get("buyer") or "-"
+        stars = "⭐" * (review.rating or 0) if review and review.rating else "?"
+        logger.info(f"{Fore.LIGHTYELLOW_EX}Новый отзыв по заказу {short_id} от {buyer}: {stars}")
+
+        replied = False
+        if review and not review.review_response and self.config["starvell"]["auto_review_replies"]:
+            try:
+                order = await self.client.get_order(order_id)
+            except StarvellError:
+                order = Order(id=order_id, short_id=short_id)
+            text = self.msg("order_review_reply", user=MsgUser(review.author_id, buyer), order=msg_order(order))
+            if text:
+                try:
+                    await self.client.create_review_response(review.id, text[:1000])
+                    replied = True
+                    logger.info(f"{Fore.LIGHTGREEN_EX}Ответил на отзыв по заказу {short_id}")
+                except StarvellError as e:
+                    logger.error(f"{Fore.LIGHTRED_EX}Не удалось ответить на отзыв по заказу {short_id}: {Fore.WHITE}{e}")
+
+        content = escape(review.content or "") if review else ""
+        self.notify("new_review", log_text(
+            f"🌟 Новый отзыв {stars}",
+            f"<b>Покупатель:</b> {escape(buyer)}\n<b>Заказ:</b> {escape(short_id)}"
+            + (f"\n<blockquote>{content}</blockquote>" if content else "")
+            + ("\n\n✅ Бот ответил на отзыв" if replied else "")
+        ), log_order_kb(order_id, message.chat_id))
 
     async def _on_new_order(self, event: NewOrderEvent):
         order = event.order

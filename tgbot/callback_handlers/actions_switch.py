@@ -48,6 +48,17 @@ async def callback_switch_read_chat_enabled(callback: CallbackQuery, state: FSMC
     )
 
 
+@router.callback_query(F.data == "switch_auto_review_replies")
+async def callback_switch_auto_review_replies(callback: CallbackQuery, state: FSMContext):
+    config = sett.get("config")
+    config["starvell"]["auto_review_replies"] = not config["starvell"]["auto_review_replies"]
+    sett.set("config", config)
+
+    return await callback_menu_navigation(
+        callback, calls.MenuNavigation(to="other"), state
+    )
+
+
 @router.callback_query(F.data == "switch_watermark_enabled")
 async def callback_switch_watermark_enabled(callback: CallbackQuery, state: FSMContext):
     config = sett.get("config")
