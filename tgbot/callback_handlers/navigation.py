@@ -6,7 +6,7 @@ from settings import Settings as sett
 
 from .. import templates as templ
 from .. import callback_datas as calls
-from ..helpful import throw_float_message, do_auth, sv_call, get_svbot
+from ..helpful import throw_float_message, do_auth, sv_call, get_svbot, safe_error
 
 
 router = Router()
@@ -70,7 +70,7 @@ async def callback_menu_navigation(callback: CallbackQuery, callback_data: calls
             profile = await sv_call(svbot.account.refresh())
         except Exception as e:
             return await throw_float_message(
-                state, callback.message, templ.profile_float_text(f"❌ Не удалось получить профиль: {e}"),
+                state, callback.message, templ.profile_float_text(f"❌ Не удалось получить профиль: {safe_error(e)}"),
                 templ.back_kb(calls.MenuNavigation(to="default").pack()), callback
             )
         await throw_float_message(

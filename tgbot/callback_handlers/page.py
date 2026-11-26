@@ -8,7 +8,8 @@ from core.blacklist import get_blacklist
 
 from .. import templates as templ
 from .. import callback_datas as calls
-from ..helpful import throw_float_message, sv_call, get_svbot
+from ..helpful import throw_float_message, sv_call, get_svbot, safe_error
+from ..filters import SignedFilter
 
 
 router = Router()
@@ -134,16 +135,17 @@ async def callback_release_page(callback: CallbackQuery, callback_data: calls.Re
     )
 
 
-@router.callback_query(calls.AutoDeliveryPage.filter())
+@router.callback_query(calls.AutoDeliveryPage.filter(), SignedFilter())
 async def callback_auto_delivery_page(callback: CallbackQuery, callback_data: calls.AutoDeliveryPage, state: FSMContext):
     from settings import Settings as sett
+    from svbot.deliveries import resolve_binding
 
     await state.set_state(None)
-    index = callback_data.index
     data = await state.get_data()
     last_page = data.get("last_page", 0)
 
-    if index >= len(sett.get("auto_deliveries")):
+    _, binding = resolve_binding(sett.get("auto_deliveries"), callback_data.id)
+    if binding is None:
         return await throw_float_message(
             state=state,
             message=callback.message,
@@ -151,13 +153,14 @@ async def callback_auto_delivery_page(callback: CallbackQuery, callback_data: ca
             reply_markup=templ.back_kb(calls.AutoDeliveriesPagination(page=last_page).pack()),
             callback=callback
         )
-    await state.update_data(auto_delivery_index=index)
+    ref = binding.get("id") or callback_data.id
+    await state.update_data(auto_delivery_id=ref)
 
     await throw_float_message(
         state=state,
         message=callback.message,
-        text=templ.deliv_page_text(index),
-        reply_markup=templ.deliv_page_kb(index, last_page),
+        text=templ.deliv_page_text(ref),
+        reply_markup=templ.deliv_page_kb(ref, last_page),
         callback=callback
     )
 
@@ -172,7 +175,7 @@ async def render_chat_page(message, state: FSMContext, chat_id: str, callback: C
         return await throw_float_message(
             state=state,
             message=message,
-            text=templ.chat_float_text(f"❌ Не удалось открыть чат: {e}"),
+            text=templ.chat_float_text(f"❌ Не удалось открыть чат: {safe_error(e)}"),
             reply_markup=templ.back_kb("back_to_chats"),
             callback=callback
         )
@@ -189,7 +192,7 @@ async def render_chat_page(message, state: FSMContext, chat_id: str, callback: C
     )
 
 
-@router.callback_query(calls.ChatPage.filter())
+@router.callback_query(calls.ChatPage.filter(), SignedFilter())
 async def callback_chat_page(callback: CallbackQuery, callback_data: calls.ChatPage, state: FSMContext):
     await state.set_state(None)
     await render_chat_page(callback.message, state, callback_data.id, callback)
@@ -211,7 +214,7 @@ async def render_order_page(message, state: FSMContext, order_id: str, callback:
         return await throw_float_message(
             state=state,
             message=message,
-            text=templ.order_float_text(f"❌ Не удалось получить заказ: {e}"),
+            text=templ.order_float_text(f"❌ Не удалось получить заказ: {safe_error(e)}"),
             reply_markup=templ.back_kb(calls.OrdersPagination(page=last_page, st=st).pack()),
             callback=callback
         )
@@ -227,7 +230,7 @@ async def render_order_page(message, state: FSMContext, order_id: str, callback:
     )
 
 
-@router.callback_query(calls.OrderPage.filter())
+@router.callback_query(calls.OrderPage.filter(), SignedFilter())
 async def callback_order_page(callback: CallbackQuery, callback_data: calls.OrderPage, state: FSMContext):
     await state.set_state(None)
     await render_order_page(callback.message, state, callback_data.id, callback)

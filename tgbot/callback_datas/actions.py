@@ -61,6 +61,7 @@ class SetNewDelivPiece(CallbackData, prefix="sepiece"):
 
 class DeleteDelivGood(CallbackData, prefix="delgod"):
     index: int
+    h: str
 
 
 class DeleteIncludedCompleteOrder(CallbackData, prefix="delinco"):

@@ -18,7 +18,7 @@ class ReleasePage(CallbackData, prefix="relpage"):
     index: int
 
 class AutoDeliveryPage(CallbackData, prefix="audepage"):
-    index: int
+    id: str
 
 class ChatPage(CallbackData, prefix="chtpage"):
     id: str

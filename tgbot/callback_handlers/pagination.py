@@ -7,7 +7,8 @@ import asyncio
 from .. import templates as templ
 from .. import callback_datas as calls
 from .. import states
-from ..helpful import throw_float_message, sv_call, get_svbot
+from ..helpful import throw_float_message, sv_call, get_svbot, safe_error
+from ..filters import SignedFilter
 
 
 router = Router()
@@ -161,7 +162,7 @@ async def render_auto_deliveries(message: Message, state: FSMContext, page: int,
     )
 
 
-@router.callback_query(calls.AutoDeliveriesPagination.filter())
+@router.callback_query(calls.AutoDeliveriesPagination.filter(), SignedFilter())
 async def callback_auto_deliveries_pagination(callback: CallbackQuery, callback_data: calls.AutoDeliveriesPagination, state: FSMContext):
     await state.set_state(None)
     await render_auto_deliveries(callback.message, state, callback_data.page, callback)
@@ -169,23 +170,24 @@ async def callback_auto_deliveries_pagination(callback: CallbackQuery, callback_
 
 async def render_deliv_goods(message: Message, state: FSMContext, page: int, callback: CallbackQuery = None):
     from settings import Settings as sett
+    from svbot.deliveries import resolve_binding
 
     data = await state.get_data()
-    index = data.get("auto_delivery_index")
-    if index is None or index >= len(sett.get("auto_deliveries")):
+    ref = data.get("auto_delivery_id")
+    if resolve_binding(sett.get("auto_deliveries"), ref)[1] is None:
         return await render_auto_deliveries(message, state, 0, callback)
     await state.update_data(goods_last_page=page)
 
     await throw_float_message(
         state=state,
         message=message,
-        text=templ.deliv_goods_text(index),
-        reply_markup=templ.deliv_goods_kb(index, page),
+        text=templ.deliv_goods_text(ref),
+        reply_markup=templ.deliv_goods_kb(ref, page),
         callback=callback
     )
 
 
-@router.callback_query(calls.DelivGoodsPagination.filter())
+@router.callback_query(calls.DelivGoodsPagination.filter(), SignedFilter())
 async def callback_deliv_goods_pagination(callback: CallbackQuery, callback_data: calls.DelivGoodsPagination, state: FSMContext):
     await state.set_state(None)
     await render_deliv_goods(callback.message, state, callback_data.page, callback)
@@ -199,7 +201,7 @@ async def render_complete_included(message: Message, state: FSMContext, page: in
     )
 
 
-@router.callback_query(calls.IncludedCompleteOrdersPagination.filter())
+@router.callback_query(calls.IncludedCompleteOrdersPagination.filter(), SignedFilter())
 async def callback_included_complete_orders_pagination(callback: CallbackQuery, callback_data: calls.IncludedCompleteOrdersPagination, state: FSMContext):
     await state.set_state(None)
     await render_complete_included(callback.message, state, callback_data.page, callback)
@@ -213,7 +215,7 @@ async def render_complete_excluded(message: Message, state: FSMContext, page: in
     )
 
 
-@router.callback_query(calls.ExcludedCompleteOrdersPagination.filter())
+@router.callback_query(calls.ExcludedCompleteOrdersPagination.filter(), SignedFilter())
 async def callback_excluded_complete_orders_pagination(callback: CallbackQuery, callback_data: calls.ExcludedCompleteOrdersPagination, state: FSMContext):
     await state.set_state(None)
     await render_complete_excluded(callback.message, state, callback_data.page, callback)
@@ -227,7 +229,7 @@ async def render_bump(message: Message, state: FSMContext, page: int, callback: 
     )
 
 
-@router.callback_query(calls.BumpCategoriesPagination.filter())
+@router.callback_query(calls.BumpCategoriesPagination.filter(), SignedFilter())
 async def callback_bump_categories_pagination(callback: CallbackQuery, callback_data: calls.BumpCategoriesPagination, state: FSMContext):
     await state.set_state(None)
     await render_bump(callback.message, state, callback_data.page, callback)
@@ -244,7 +246,7 @@ async def render_fast_sel_fast_reply(message: Message, state: FSMContext, page: 
     )
 
 
-@router.callback_query(calls.FastSelFastReplyPagination.filter())
+@router.callback_query(calls.FastSelFastReplyPagination.filter(), SignedFilter())
 async def callback_fast_sel_fast_reply_pagination(callback: CallbackQuery, callback_data: calls.FastSelFastReplyPagination, state: FSMContext):
     await state.set_state(None)
     await state.update_data(chat_id=callback_data.id)
@@ -262,7 +264,7 @@ async def render_sel_fast_reply(message: Message, state: FSMContext, page: int, 
     )
 
 
-@router.callback_query(calls.SelFastReplyPagination.filter())
+@router.callback_query(calls.SelFastReplyPagination.filter(), SignedFilter())
 async def callback_sel_fast_reply_pagination(callback: CallbackQuery, callback_data: calls.SelFastReplyPagination, state: FSMContext):
     await state.set_state(None)
     await state.update_data(chat_id=callback_data.id)
@@ -282,7 +284,7 @@ async def render_chats(message: Message, state: FSMContext, page: int, callback:
         return await throw_float_message(
             state=state,
             message=message,
-            text=templ.chats_float_text(f"❌ Не удалось получить чаты: {e}"),
+            text=templ.chats_float_text(f"❌ Не удалось получить чаты: {safe_error(e)}"),
             reply_markup=templ.back_kb(calls.MenuNavigation(to="default").pack()),
             callback=callback
         )
@@ -296,7 +298,7 @@ async def render_chats(message: Message, state: FSMContext, page: int, callback:
     )
 
 
-@router.callback_query(calls.ChatsPagination.filter())
+@router.callback_query(calls.ChatsPagination.filter(), SignedFilter())
 async def callback_chats_pagination(callback: CallbackQuery, callback_data: calls.ChatsPagination, state: FSMContext):
     await state.set_state(None)
     await render_chats(callback.message, state, callback_data.page, callback)
@@ -315,7 +317,7 @@ async def render_orders(message: Message, state: FSMContext, page: int, callback
         return await throw_float_message(
             state=state,
             message=message,
-            text=templ.orders_float_text(f"❌ Не удалось получить заказы: {e}"),
+            text=templ.orders_float_text(f"❌ Не удалось получить заказы: {safe_error(e)}"),
             reply_markup=templ.back_kb(calls.MenuNavigation(to="default").pack()),
             callback=callback
         )
@@ -329,7 +331,7 @@ async def render_orders(message: Message, state: FSMContext, page: int, callback
     )
 
 
-@router.callback_query(calls.OrdersPagination.filter())
+@router.callback_query(calls.OrdersPagination.filter(), SignedFilter())
 async def callback_orders_pagination(callback: CallbackQuery, callback_data: calls.OrdersPagination, state: FSMContext):
     await state.set_state(None)
     await render_orders(callback.message, state, callback_data.page, callback, st=callback_data.st)

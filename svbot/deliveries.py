@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import uuid
+import zlib
 from html import escape
 from typing import Any
 
@@ -32,8 +34,49 @@ def offer_entry(offer: Offer) -> dict[str, Any]:
     }
 
 
+def new_binding_id() -> str:
+    return uuid.uuid4().hex[:12]
+
+
+def ensure_binding_ids(bindings: list[dict[str, Any]]) -> bool:
+    # у привязки стабильный id: индекс сдвигается, если удалить привязку выше, пока идёт выдача
+    changed, seen = False, set()
+    for binding in bindings or []:
+        if not binding.get("id") or binding["id"] in seen:
+            binding["id"] = new_binding_id()
+            changed = True
+        seen.add(binding["id"])
+    return changed
+
+
+def find_binding(bindings: list[dict[str, Any]], ref) -> tuple[int, dict[str, Any]] | tuple[None, None]:
+    for i, binding in enumerate(bindings or []):
+        if isinstance(ref, str) and binding.get("id") == ref:
+            return i, binding
+    if isinstance(ref, int) and 0 <= ref < len(bindings or []):
+        return ref, bindings[ref]
+    return None, None
+
+
+def binding_ref(binding: dict[str, Any], index: int) -> str:
+    return binding.get("id") or f"i{index}"
+
+
+def resolve_binding(bindings: list[dict[str, Any]], ref: str | None) -> tuple[int, dict[str, Any]] | tuple[None, None]:
+    if not ref:
+        return None, None
+    if re.fullmatch(r"i\d+", ref):
+        return find_binding(bindings, int(ref[1:]))
+    return find_binding(bindings, ref)
+
+
+def good_hash(good: str) -> str:
+    return f"{zlib.crc32(good.encode()):08x}"
+
+
 def new_binding(offers: list[Offer], piece: bool, message: list[str] | None = None, goods: list[str] | None = None) -> dict[str, Any]:
     return {
+        "id": new_binding_id(),
         "enabled": True,
         "piece": piece,
         "offers": [offer_entry(o) for o in offers],

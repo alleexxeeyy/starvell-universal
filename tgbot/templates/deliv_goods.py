@@ -3,21 +3,27 @@ import textwrap
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from settings import Settings as sett
+from svbot.deliveries import resolve_binding, good_hash
 
 from .. import callback_datas as calls
 
 
-def deliv_goods_text(index=0):
-    goods = sett.get("auto_deliveries")[index].get("goods") or []
+def _goods(ref: str) -> list[str]:
+    _, deliv = resolve_binding(sett.get("auto_deliveries"), ref)
+    return (deliv or {}).get("goods") or []
+
+
+def deliv_goods_text(ref: str):
+    goods = _goods(ref)
     txt = textwrap.dedent(f"""
         <b>📦 Товары авто-выдачи</b>
-        Всего <b>{len(goods)}</b> товаров, на каждую покупку уходит по одному:
+        Всего <b>{len(goods)}</b> товаров, на покупку N штук бот выдаёт N строк:
     """)
     return txt
 
 
-def deliv_goods_kb(index=0, page=0):
-    goods = sett.get("auto_deliveries")[index].get("goods") or []
+def deliv_goods_kb(ref: str, page=0):
+    goods = _goods(ref)
     
     rows = []
     items_per_page = 10
@@ -33,7 +39,7 @@ def deliv_goods_kb(index=0, page=0):
     for i, good in enumerate(list(goods)[start_offset:end_offset], start=start_offset):
         rows.append([
             InlineKeyboardButton(text=good[:60], callback_data="null_answer"),
-            InlineKeyboardButton(text="🗑️", callback_data=calls.DeleteDelivGood(index=i).pack()),
+            InlineKeyboardButton(text="🗑️", callback_data=calls.DeleteDelivGood(index=i, h=good_hash(good)).pack()),
         ])
 
     if total_pages > 1:
@@ -49,7 +55,7 @@ def deliv_goods_kb(index=0, page=0):
         rows.append(buttons_row)
 
     rows.append([InlineKeyboardButton(text="➕ Добавить", callback_data="enter_auto_delivery_goods_add")])
-    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data=calls.AutoDeliveryPage(index=index).pack())])
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data=calls.AutoDeliveryPage(id=ref).pack())])
 
     kb = InlineKeyboardMarkup(inline_keyboard=rows)
     return kb

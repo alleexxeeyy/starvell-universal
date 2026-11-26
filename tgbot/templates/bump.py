@@ -29,13 +29,15 @@ def bump_text():
     config = sett.get("config")
     enabled = "✅" if config["starvell"]["auto_bump_offers"]["enabled"] else "❌"
     categories = _bump_categories()
+    disabled = sum(1 for c in categories.values() if c.get("disabled"))
+    disabled_frmtd = f" (и {disabled} выключено)" if disabled else ""
     
     txt = textwrap.dedent(f"""
         <b>⬆️ Авто-поднятие</b>
         <blockquote><b>(?)</b> Бот поднимает ваши лоты по категориям, как только Starvell это разрешает (обычно раз в 4 часа). Категории бот находит сам по заказам и авто-выдаче, можно добавить и по ссылке на лот.</blockquote>
 
         <b>💡 Включено:</b> {enabled}
-        <b>📂 Категорий:</b> {len(categories)}
+        <b>📂 Категорий:</b> {len(categories) - disabled}{disabled_frmtd}
     """)
     return txt
 
@@ -43,7 +45,7 @@ def bump_text():
 def bump_kb(page=0):
     config = sett.get("config")
     enabled = "✅" if config["starvell"]["auto_bump_offers"]["enabled"] else "❌"
-    categories = sorted(_bump_categories().values(), key=lambda c: c.get("next_time", 0))
+    categories = sorted(_bump_categories().values(), key=lambda c: (bool(c.get("disabled")), c.get("next_time", 0)))
     
     rows = [[InlineKeyboardButton(text=f"💡 Включено: {enabled}", callback_data="switch_auto_bump_offers_enabled")]]
 
@@ -60,9 +62,11 @@ def bump_kb(page=0):
     for cat in categories[start_offset:end_offset]:
         title = str(cat.get("title") or f"{cat['game_id']}:{cat['category_id']}")
         title_frmtd = title[:28] + ("..." if len(title) > 28 else "")
+        disabled = cat.get("disabled")
+        status = "выключена" if disabled else _left(cat.get("next_time", 0))
         rows.append([
-            InlineKeyboardButton(text=f"{title_frmtd} ・ {_left(cat.get('next_time', 0))}", callback_data="null_answer"),
-            InlineKeyboardButton(text="🗑️", callback_data=calls.DeleteBumpCategory(game=cat["game_id"], cat=cat["category_id"]).pack()),
+            InlineKeyboardButton(text=f"{'⏸ ' if disabled else ''}{title_frmtd} ・ {status}", callback_data="null_answer"),
+            InlineKeyboardButton(text="▶️" if disabled else "⏸", callback_data=calls.DeleteBumpCategory(game=cat["game_id"], cat=cat["category_id"]).pack()),
         ])
 
     if total_pages > 1:

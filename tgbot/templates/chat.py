@@ -16,6 +16,7 @@ _NOTIFICATIONS = {
 }
 
 MAX_CHAT_TEXT = 3800
+MAX_MESSAGE_TEXT = 700
 
 
 def _message_text(msg: Message) -> str:
@@ -25,7 +26,8 @@ def _message_text(msg: Message) -> str:
         order_id = msg.order_id
         label = f"*{title}{' ' + short_id if short_id else ''}*"
         return f'<a href="https://starvell.com/order/{order_id}"><i>{escape(label)}</i></a>' if order_id else f"<i>{escape(label)}</i>"
-    text = escape(msg.text)
+    raw = msg.text or ""
+    text = escape(raw[:MAX_MESSAGE_TEXT] + ("..." if len(raw) > MAX_MESSAGE_TEXT else ""))
     if msg.images:
         text = f"<i>*Изображений: {len(msg.images)}*</i>" + (f" {text}" if text else "")
     return text or "<i>*Без сообщения*</i>"

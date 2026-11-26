@@ -4,12 +4,13 @@ from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from settings import Settings as sett
-from svbot.deliveries import offer_links
+from svbot.deliveries import offer_links, resolve_binding, new_binding_id, good_hash
 
 from .. import templates as templ
 from .. import callback_datas as calls
 from .. import states
-from ..helpful import throw_float_message, notify, sv_call, get_svbot, set_bot_setting
+from ..filters import SignedFilter
+from ..helpful import throw_float_message, notify, sv_call, get_svbot, set_bot_setting, edit_setting, safe_error
 from .navigation import callback_menu_navigation
 from .pagination import (
     render_auto_deliveries,
@@ -22,14 +23,30 @@ from .page import callback_auto_delivery_page
 
 
 router = Router()
+router.callback_query.filter(SignedFilter())
 
 
-async def _deliv_index(state: FSMContext) -> int | None:
+async def _deliv_ref(state: FSMContext) -> str | None:
     data = await state.get_data()
-    index = data.get("auto_delivery_index")
-    if index is None or index >= len(sett.get("auto_deliveries")):
+    ref = data.get("auto_delivery_id")
+    if resolve_binding(sett.get("auto_deliveries"), ref)[1] is None:
         return None
-    return index
+    return ref
+
+
+def _on_binding(ref: str, change):
+    # правка одной привязки внутри ядра: склад могли списать между показом экрана и нажатием
+    def func(bindings):
+        _, binding = resolve_binding(bindings, ref)
+        if binding is None:
+            raise Exception("❌ Авто-выдача не найдена, возможно её уже удалили")
+        return change(binding, bindings)
+    return func
+
+
+async def _back_to_deliveries(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    return await render_auto_deliveries(callback.message, state, data.get("last_page", 0), callback)
 
 
 # --- авто-выдача ---
@@ -89,18 +106,19 @@ async def callback_add_new_auto_delivery(callback: CallbackQuery, state: FSMCont
         piece = data.get("new_auto_delivery_piece")
         if not offers or piece is None:
             raise Exception("❌ Данные авто-выдачи потерялись, начните добавление заново")
+        # сразу забываем черновик: повторное нажатие «Подтвердить» не создаст вторую привязку
+        await state.update_data(new_auto_delivery_offers=None, new_auto_delivery_goods=None,
+                                new_auto_delivery_message=None, new_auto_delivery_piece=None)
 
         binding = {
+            "id": new_binding_id(),
             "enabled": True,
             "piece": bool(piece),
             "offers": offers,
             "message": (data.get("new_auto_delivery_message") or "").splitlines() if not piece else [],
             "goods": (data.get("new_auto_delivery_goods") or []) if piece else [],
         }
-        auto_deliveries = sett.get("auto_deliveries")
-        auto_deliveries.append(binding)
-        set_bot_setting("auto_deliveries", auto_deliveries)
-        await state.update_data(new_auto_delivery_offers=None, new_auto_delivery_goods=None, new_auto_delivery_message=None)
+        await edit_setting("auto_deliveries", lambda bindings: bindings.append(binding))
 
         try:
             svbot = get_svbot()
@@ -120,43 +138,46 @@ async def callback_add_new_auto_delivery(callback: CallbackQuery, state: FSMCont
         await throw_float_message(
             state=state,
             message=callback.message,
-            text=templ.new_deliv_float_text(e),
+            text=templ.new_deliv_float_text(safe_error(e)),
             reply_markup=templ.back_kb(calls.AutoDeliveriesPagination(page=last_page).pack()),
             callback=callback
         )
 
 
+async def _toggle_binding(callback: CallbackQuery, state: FSMContext, change):
+    ref = await _deliv_ref(state)
+    if ref is None:
+        return await _back_to_deliveries(callback, state)
+    try:
+        await edit_setting("auto_deliveries", _on_binding(ref, change))
+    except Exception as e:
+        await notify(callback, safe_error(e), alert=True)
+    return await callback_auto_delivery_page(callback, calls.AutoDeliveryPage(id=ref), state)
+
+
 @router.callback_query(F.data == "switch_auto_delivery_enabled")
 async def callback_switch_auto_delivery_enabled(callback: CallbackQuery, state: FSMContext):
-    index = await _deliv_index(state)
-    if index is None:
-        return await render_auto_deliveries(callback.message, state, 0, callback)
-    auto_deliveries = sett.get("auto_deliveries")
-    auto_deliveries[index]["enabled"] = not auto_deliveries[index].get("enabled", True)
-    set_bot_setting("auto_deliveries", auto_deliveries)
-    return await callback_auto_delivery_page(callback, calls.AutoDeliveryPage(index=index), state)
+    def change(binding, _):
+        binding["enabled"] = not binding.get("enabled", True)
+    await _toggle_binding(callback, state, change)
 
 
 @router.callback_query(F.data == "switch_auto_delivery_piece")
 async def callback_switch_auto_delivery_piece(callback: CallbackQuery, state: FSMContext):
-    index = await _deliv_index(state)
-    if index is None:
-        return await render_auto_deliveries(callback.message, state, 0, callback)
-    auto_deliveries = sett.get("auto_deliveries")
-    auto_deliveries[index]["piece"] = not auto_deliveries[index].get("piece")
-    auto_deliveries[index].setdefault("goods", [])
-    auto_deliveries[index].setdefault("message", [])
-    set_bot_setting("auto_deliveries", auto_deliveries)
-    return await callback_auto_delivery_page(callback, calls.AutoDeliveryPage(index=index), state)
+    def change(binding, _):
+        binding["piece"] = not binding.get("piece")
+        binding.setdefault("goods", [])
+        binding.setdefault("message", [])
+    await _toggle_binding(callback, state, change)
 
 
 @router.callback_query(F.data == "enter_auto_delivery_offers")
 async def callback_enter_auto_delivery_offers(callback: CallbackQuery, state: FSMContext):
-    index = await _deliv_index(state)
-    if index is None:
-        return await render_auto_deliveries(callback.message, state, 0, callback)
+    ref = await _deliv_ref(state)
+    if ref is None:
+        return await _back_to_deliveries(callback, state)
     await state.set_state(states.AutoDeliveriesStates.waiting_for_auto_delivery_offers)
-    current = offer_links(sett.get("auto_deliveries")[index].get("offers"))
+    current = offer_links(resolve_binding(sett.get("auto_deliveries"), ref)[1].get("offers"))
     await throw_float_message(
         state=state,
         message=callback.message,
@@ -164,18 +185,19 @@ async def callback_enter_auto_delivery_offers(callback: CallbackQuery, state: FS
             "🛍️ Отправьте новые <b>ссылки на лоты</b> (каждая с новой строки):"
             f"\n\n・ <b>Сейчас:</b> {current}"
         ),
-        reply_markup=templ.back_kb(calls.AutoDeliveryPage(index=index).pack()),
+        reply_markup=templ.back_kb(calls.AutoDeliveryPage(id=ref).pack()),
         callback=callback
     )
 
 
 @router.callback_query(F.data == "enter_auto_delivery_message")
 async def callback_enter_auto_delivery_message(callback: CallbackQuery, state: FSMContext):
-    index = await _deliv_index(state)
-    if index is None:
-        return await render_auto_deliveries(callback.message, state, 0, callback)
+    ref = await _deliv_ref(state)
+    if ref is None:
+        return await _back_to_deliveries(callback, state)
     await state.set_state(states.AutoDeliveriesStates.waiting_for_auto_delivery_message)
-    current = escape("\n".join(sett.get("auto_deliveries")[index].get("message") or [])) or "❌ Не задано"
+    current = "\n".join(resolve_binding(sett.get("auto_deliveries"), ref)[1].get("message") or [])
+    current = escape(current[:1000] + ("..." if len(current) > 1000 else "")) or "❌ Не задано"
     await throw_float_message(
         state=state,
         message=callback.message,
@@ -183,16 +205,16 @@ async def callback_enter_auto_delivery_message(callback: CallbackQuery, state: F
             "💬 Введите новое <b>сообщение авто-выдачи</b>:"
             f"\n\n・ <b>Сейчас:</b> <blockquote>{current}</blockquote>"
         ),
-        reply_markup=templ.back_kb(calls.AutoDeliveryPage(index=index).pack()),
+        reply_markup=templ.back_kb(calls.AutoDeliveryPage(id=ref).pack()),
         callback=callback
     )
 
 
 @router.callback_query(F.data == "enter_auto_delivery_goods_add")
 async def callback_enter_auto_delivery_goods_add(callback: CallbackQuery, state: FSMContext):
-    index = await _deliv_index(state)
-    if index is None:
-        return await render_auto_deliveries(callback.message, state, 0, callback)
+    ref = await _deliv_ref(state)
+    if ref is None:
+        return await _back_to_deliveries(callback, state)
     data = await state.get_data()
     await state.set_state(states.AutoDeliveriesStates.waiting_for_auto_delivery_goods_add)
     await throw_float_message(
@@ -209,26 +231,36 @@ async def callback_enter_auto_delivery_goods_add(callback: CallbackQuery, state:
 
 @router.callback_query(calls.DeleteDelivGood.filter())
 async def callback_delete_deliv_good(callback: CallbackQuery, callback_data: calls.DeleteDelivGood, state: FSMContext):
-    index = await _deliv_index(state)
-    if index is None:
-        return await render_auto_deliveries(callback.message, state, 0, callback)
+    ref = await _deliv_ref(state)
+    if ref is None:
+        return await _back_to_deliveries(callback, state)
     data = await state.get_data()
-    auto_deliveries = sett.get("auto_deliveries")
-    goods = auto_deliveries[index].get("goods") or []
-    if callback_data.index < len(goods):
-        goods.pop(callback_data.index)
-        auto_deliveries[index]["goods"] = goods
-        set_bot_setting("auto_deliveries", auto_deliveries)
-        await notify(callback, "🗑️ Товар удалён")
+
+    def change(binding, _):
+        goods = binding.get("goods") or []
+        # пока экран был открыт, товары могли выдать - индекс сверяем по хешу значения
+        index = callback_data.index
+        if not (index < len(goods) and good_hash(goods[index]) == callback_data.h):
+            index = next((i for i, g in enumerate(goods) if good_hash(g) == callback_data.h), None)
+        if index is None:
+            return False
+        goods.pop(index)
+        return True
+
+    try:
+        removed = await edit_setting("auto_deliveries", _on_binding(ref, change))
+        await notify(callback, "🗑️ Товар удалён" if removed else "Этого товара уже нет: его выдали или удалили", alert=not removed)
+    except Exception as e:
+        await notify(callback, safe_error(e), alert=True)
     await render_deliv_goods(callback.message, state, data.get("goods_last_page", 0), callback)
 
 
 @router.callback_query(F.data == "confirm_deleting_auto_delivery")
 async def callback_confirm_deleting_auto_delivery(callback: CallbackQuery, state: FSMContext):
-    index = await _deliv_index(state)
-    if index is None:
-        return await render_auto_deliveries(callback.message, state, 0, callback)
-    goods = len(sett.get("auto_deliveries")[index].get("goods") or [])
+    ref = await _deliv_ref(state)
+    if ref is None:
+        return await _back_to_deliveries(callback, state)
+    goods = len(resolve_binding(sett.get("auto_deliveries"), ref)[1].get("goods") or [])
     await throw_float_message(
         state=state,
         message=callback.message,
@@ -238,7 +270,7 @@ async def callback_confirm_deleting_auto_delivery(callback: CallbackQuery, state
         ),
         reply_markup=templ.confirm_kb(
             confirm_cb="delete_auto_delivery",
-            cancel_cb=calls.AutoDeliveryPage(index=index).pack()
+            cancel_cb=calls.AutoDeliveryPage(id=ref).pack()
         ),
         callback=callback
     )
@@ -246,16 +278,21 @@ async def callback_confirm_deleting_auto_delivery(callback: CallbackQuery, state
 
 @router.callback_query(F.data == "delete_auto_delivery")
 async def callback_delete_auto_delivery(callback: CallbackQuery, state: FSMContext):
-    index = await _deliv_index(state)
+    ref = await _deliv_ref(state)
     data = await state.get_data()
     last_page = data.get("last_page", 0)
-    if index is None:
+    if ref is None:
         return await render_auto_deliveries(callback.message, state, last_page, callback)
-    auto_deliveries = sett.get("auto_deliveries")
-    auto_deliveries.pop(index)
-    set_bot_setting("auto_deliveries", auto_deliveries)
-    await state.update_data(auto_delivery_index=None)
-    await notify(callback, "🗑️ Авто-выдача удалена")
+
+    def change(binding, bindings):
+        bindings.remove(binding)
+
+    try:
+        await edit_setting("auto_deliveries", _on_binding(ref, change))
+        await notify(callback, "🗑️ Авто-выдача удалена")
+    except Exception as e:
+        await notify(callback, safe_error(e), alert=True)
+    await state.update_data(auto_delivery_id=None)
     await render_auto_deliveries(callback.message, state, last_page, callback)
 
 
@@ -353,14 +390,15 @@ async def callback_enter_bump_offer(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(calls.DeleteBumpCategory.filter())
-async def callback_delete_bump_category(callback: CallbackQuery, callback_data: calls.DeleteBumpCategory, state: FSMContext):
+async def callback_toggle_bump_category(callback: CallbackQuery, callback_data: calls.DeleteBumpCategory, state: FSMContext):
     data = await state.get_data()
     try:
         svbot = get_svbot()
-        if await sv_call(svbot.remove_bump_category(callback_data.game, callback_data.cat)):
-            await notify(callback, "🗑️ Категория убрана. Если в ней снова будет заказ, бот добавит её сам")
+        enabled = await sv_call(svbot.toggle_bump_category(callback_data.game, callback_data.cat))
+        if enabled is not None:
+            await notify(callback, "▶️ Категория снова поднимается" if enabled else "⏸ Категория больше не поднимается")
     except Exception as e:
-        await notify(callback, str(e), alert=True)
+        await notify(callback, safe_error(e), alert=True)
     await render_bump(callback.message, state, data.get("bump_last_page", 0), callback)
 
 
@@ -384,6 +422,8 @@ async def callback_bump_offers_now(callback: CallbackQuery, state: FSMContext):
         svbot = get_svbot()
         if not svbot.bump_categories:
             raise Exception("❌ Нет категорий для поднятия. Добавьте их по ссылке на лот или найдите по заказам")
+        if all(c.get("disabled") for c in svbot.bump_categories.values()):
+            raise Exception("❌ Все категории выключены, включите нужные кнопкой ▶️")
         await throw_float_message(state, callback.message, templ.bump_float_text("⌛ Поднимаю лоты..."), callback=callback)
         results = await sv_call(svbot.bump_offers(force=True))
 
@@ -401,4 +441,4 @@ async def callback_bump_offers_now(callback: CallbackQuery, state: FSMContext):
             reply_markup=back
         )
     except Exception as e:
-        await throw_float_message(state=state, message=callback.message, text=templ.bump_float_text(e), reply_markup=back, callback=callback)
+        await throw_float_message(state=state, message=callback.message, text=templ.bump_float_text(safe_error(e)), reply_markup=back, callback=callback)

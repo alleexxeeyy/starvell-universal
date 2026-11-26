@@ -3,7 +3,7 @@ import textwrap
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from settings import Settings as sett
-from svbot.deliveries import binding_title
+from svbot.deliveries import binding_title, binding_ref
 
 from .. import callback_datas as calls
 
@@ -42,11 +42,12 @@ def delivs_kb(page=0):
         if piece:
             part = f"{len(deliv.get('goods') or [])} шт."
         else:
-            part = "\n".join(deliv.get("message") or []) or "❌ Не задано"
+            part = " ".join(deliv.get("message") or []) or "❌ Не задано"
+            part = part[:32] + ("..." if len(part) > 32 else "")
         
         rows.append([InlineKeyboardButton(
             text=f"{sym} {title_frmtd} ・ {part}", 
-            callback_data=calls.AutoDeliveryPage(index=index).pack()
+            callback_data=calls.AutoDeliveryPage(id=binding_ref(deliv, index)).pack()
         )])
 
     if total_pages > 1:

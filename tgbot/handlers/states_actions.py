@@ -6,12 +6,14 @@ import asyncio
 
 from .. import templates as templ
 from .. import states
+from ..filters import SignedFilter
 from .. import callback_datas as calls
-from ..helpful import throw_float_message, sv_call, get_svbot
+from ..helpful import throw_float_message, sv_call, get_svbot, safe_error
 from ..callback_handlers.page import render_chat_page
 
 
 router = Router()
+router.message.filter(SignedFilter())
 
 MAX_IMAGE_SIZE = 5 * 1024 * 1024
 _albums: dict[str, list[types.Message]] = {}
@@ -83,7 +85,7 @@ async def handler_waiting_for_fast_answer_message(message: types.Message, state:
         await throw_float_message(
             state=state,
             message=message,
-            text=templ.do_action_text(e),
+            text=templ.do_action_text(safe_error(e)),
             reply_markup=templ.destroy_kb()
         )
 
@@ -107,6 +109,6 @@ async def handler_waiting_for_chat_answer_message(message: types.Message, state:
         await throw_float_message(
             state=state,
             message=message,
-            text=templ.chat_float_text(e),
+            text=templ.chat_float_text(safe_error(e)),
             reply_markup=templ.back_kb(calls.ChatPage(id=chat_id).pack() if chat_id else "back_to_chats")
         )

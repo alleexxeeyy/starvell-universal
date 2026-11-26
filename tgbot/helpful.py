@@ -128,8 +128,15 @@ async def extract_lines(message: Message) -> list[str]:
             raise Exception(f"❌ Файл слишком большой (максимум {MAX_TXT_FILE_SIZE // 1024 // 1024} МБ)")
 
         file = await message.bot.get_file(message.document.file_id)
-        file_bytes = await message.bot.download_file(file.file_path)
-        content = file_bytes.read().decode("utf-8", errors="ignore")
+        file_bytes = (await message.bot.download_file(file.file_path)).read()
+        # utf-8-sig срезает BOM, иначе он уйдёт покупателю в начале первого товара
+        try:
+            content = file_bytes.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            try:
+                content = file_bytes.decode("cp1251")
+            except UnicodeDecodeError:
+                raise Exception("❌ Не удалось прочитать файл, сохраните его в кодировке UTF-8")
     else:
         raise Exception("❌ Отправьте текст или .txt файл")
 
@@ -306,6 +313,31 @@ async def sv_call(coro):
         coro.close()
         raise
     return await svbot.call(coro)
+
+
+def safe_error(e: Exception) -> str:
+    # свои ошибки бросаем голым Exception и с разметкой, всё остальное (площадка, Telegram) экранируем
+    from html import escape
+    if type(e) is Exception:
+        return str(e)
+    return f"❌ {escape(str(e) or e.__class__.__name__)}"
+
+
+async def edit_setting(name: str, func):
+    from settings import Settings as sett
+    from svbot.deliveries import ensure_binding_ids
+    from svbot.starvellbot import get_starvell_bot
+
+    svbot = get_starvell_bot()
+    if svbot is not None and svbot.loop is not None and svbot.loop.is_running():
+        # склад автовыдачи списывает ядро - правим через него, чтобы не затереть списание
+        return await svbot.call(svbot.edit_setting(name, func))
+    value = sett.get(name)
+    result = func(value)
+    if name == "auto_deliveries":
+        ensure_binding_ids(value)
+    sett.set(name, value)
+    return result
 
 
 def set_bot_setting(name: str, value):

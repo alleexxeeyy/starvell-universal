@@ -44,7 +44,7 @@ from tgbot.templates import (
     destroy_kb,
 )
 
-from .deliveries import find_bindings, offer_matches
+from .deliveries import find_bindings, offer_matches, ensure_binding_ids, find_binding
 from .msg_types import (
     ORDER_STATUSES,
     MsgUser,
@@ -104,6 +104,8 @@ class StarvellBot:
         self.messages = sett.get("messages")
         self.custom_commands = sett.get("custom_commands")
         self.auto_deliveries = sett.get("auto_deliveries")
+        if ensure_binding_ids(self.auto_deliveries):
+            sett.set("auto_deliveries", self.auto_deliveries)
         self.auto_complete_orders = sett.get("auto_complete_orders")
 
         self.initialized_users = data.get("initialized_users")
@@ -127,6 +129,7 @@ class StarvellBot:
         self._usernames: dict[str, str] = {}
         self._tasks: set[asyncio.Task] = set()
         self._bump_lock: asyncio.Lock | None = None
+        self._setting_gen: dict[str, int] = {}
 
     # --- общее ---
 
@@ -168,6 +171,20 @@ class StarvellBot:
         if watermark["enabled"] and watermark["value"]:
             return f"{text}\n{watermark['value']}"
         return text
+
+    def _save_setting(self, name: str):
+        # ядро - единственный писатель привязок: склад списывается здесь, TG правит через edit_setting
+        sett.set(name, getattr(self, name))
+        self._setting_gen[name] = self._setting_gen.get(name, 0) + 1
+
+    async def edit_setting(self, name: str, func):
+        # func меняет значение на месте в loop ядра, между чтением и записью нет await
+        value = getattr(self, name)
+        result = func(value)
+        if name == "auto_deliveries":
+            ensure_binding_ids(value)
+        self._save_setting(name)
+        return result
 
     # --- отправка ---
 
@@ -392,16 +409,16 @@ class StarvellBot:
                         return False
                     parts, binding["goods"] = stock[:quantity], stock[quantity:]
                     # сначала списываем со склада и запоминаем выданное - потом отправляем
-                    sett.set("auto_deliveries", self.auto_deliveries)
+                    self._save_setting("auto_deliveries")
                     text = "\n".join(parts)
-                    delivery = {"state": "delivering", "binding": index, "goods": parts, "text": text, "sent": 0}
+                    delivery = {"state": "delivering", "binding": binding.get("id", index), "goods": parts, "text": text, "sent": 0}
                 else:
                     text = format_text("\n".join(binding.get("message") or []),
                                        order=msg_order(order), user=MsgUser(order.buyer_id, buyer or "-"),
                                        chat=msg_chat(chat_id), account=msg_account(self.client.me))
                     if not text.strip():
                         return False
-                    delivery = {"state": "delivering", "binding": index, "text": text, "sent": 0}
+                    delivery = {"state": "delivering", "binding": binding.get("id", index), "text": text, "sent": 0}
                 cached["delivery"] = delivery
                 self._save_orders()
 
@@ -446,11 +463,13 @@ class StarvellBot:
                 await asyncio.sleep(3 * attempt)
         return "failed"
 
-    def _return_goods(self, index: int, goods: list[str]):
-        if 0 <= index < len(self.auto_deliveries):
-            binding = self.auto_deliveries[index]
-            binding["goods"] = list(goods) + list(binding.get("goods") or [])
-            sett.set("auto_deliveries", self.auto_deliveries)
+    def _return_goods(self, ref, goods: list[str]):
+        _, binding = find_binding(self.auto_deliveries, ref)
+        if binding is None:
+            logger.warning(f"{Fore.YELLOW}Привязку автовыдачи удалили во время выдачи, товар не вернулся на склад: {Fore.WHITE}{len(goods)} шт.")
+            return
+        binding["goods"] = list(goods) + list(binding.get("goods") or [])
+        self._save_setting("auto_deliveries")
 
     async def _resume_delivery(self, order: Order, chat_id: str | None) -> bool:
         # после перезапуска выдача могла оборваться: проверяем историю чата, чтобы не выдать дважды
@@ -474,6 +493,29 @@ class StarvellBot:
         text = self.msg("out_of_stock", order=msg_order(order))
         if text:
             await self.send_message(chat_id, text, priority=PRIORITY_DELIVERY)
+
+    async def order_action(self, order_id: str, do: str) -> tuple[Order, bool]:
+        # из TG: под замком заказа, чтобы двойной тап и автовыдача не сработали одновременно
+        async with self._lock(order_id):
+            order = await self.client.get_order(order_id)
+            if do == "complete":
+                if order.seller_completed_at is not None or order.is_closed:
+                    return order, False
+                await self.client.complete_order(order.id)
+                cached = self.cached_orders.setdefault(order.id, {})
+                cached["seller_completed"] = True
+            elif do == "refund":
+                if order.is_closed:
+                    return order, False
+                await self.client.refund_order(order.id)
+                cached = self.cached_orders.get(order.id)
+                if cached is not None:
+                    cached["status"] = "REFUND"
+            else:
+                raise ValueError(do)
+            self._save_orders()
+            logger.info(f"{Fore.LIGHTGREEN_EX}Заказ {order.short_id}: {'отмечен выполненным' if do == 'complete' else 'возврат'} из Telegram")
+            return order, True
 
     def is_auto_complete(self, order: Order) -> bool:
         conf = self.config["starvell"]["auto_complete_orders"]
@@ -519,10 +561,14 @@ class StarvellBot:
         self.register_category(game_id, category_id, title)
         data.set("bump_categories", self.bump_categories)
 
-    async def remove_bump_category(self, game_id: int, category_id: int) -> bool:
-        removed = self.bump_categories.pop(f"{game_id}:{category_id}", None) is not None
+    async def toggle_bump_category(self, game_id: int, category_id: int) -> bool | None:
+        # удалять нельзя: категории привязок и заказов бот добавит снова - поэтому выключаем
+        cat = self.bump_categories.get(f"{game_id}:{category_id}")
+        if cat is None:
+            return None
+        cat["disabled"] = not cat.get("disabled", False)
         data.set("bump_categories", self.bump_categories)
-        return removed
+        return not cat["disabled"]
 
     async def discover_categories(self) -> int:
         before = len(self.bump_categories)
@@ -551,7 +597,7 @@ class StarvellBot:
         results = []
         now = time.time()
         for key, cat in list(self.bump_categories.items()):
-            if not force and cat.get("next_time", 0) > now:
+            if cat.get("disabled") or (not force and cat.get("next_time", 0) > now):
                 continue
             try:
                 wait = await self.client.bump_offers(cat["game_id"], [cat["category_id"]])
@@ -588,11 +634,16 @@ class StarvellBot:
     async def _on_starvell_bot_init(self):
         async def config_loop():
             while True:
-                for name, attr in (("config", "config"), ("messages", "messages"), ("custom_commands", "custom_commands"),
-                                   ("auto_deliveries", "auto_deliveries"), ("auto_complete_orders", "auto_complete_orders")):
+                for name in ("config", "messages", "custom_commands", "auto_deliveries", "auto_complete_orders"):
+                    gen = self._setting_gen.get(name, 0)
                     value = await asyncio.to_thread(sett.get, name)
-                    if value != getattr(self, attr):
-                        setattr(self, attr, value)
+                    # пока читали файл, ядро могло его переписать (списание товара) - это чтение устарело
+                    if gen != self._setting_gen.get(name, 0):
+                        continue
+                    if value != getattr(self, name):
+                        setattr(self, name, value)
+                        if name == "auto_deliveries" and ensure_binding_ids(value):
+                            self._save_setting(name)
                 if await asyncio.to_thread(data.get, "initialized_users") != self.initialized_users:
                     await asyncio.to_thread(data.set, "initialized_users", self.initialized_users)
                 if await asyncio.to_thread(data.get, "cached_orders") != self.cached_orders:

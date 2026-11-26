@@ -9,12 +9,14 @@ from core.blacklist import get_blacklist_entry
 from .. import templates as templ
 from .. import callback_datas as calls
 from .. import states
-from ..helpful import throw_float_message, notify, sv_call, get_svbot
+from ..filters import SignedFilter
+from ..helpful import throw_float_message, notify, sv_call, get_svbot, safe_error
 from .pagination import render_chats
 from .page import render_chat_page, render_order_page
 
 
 router = Router()
+router.callback_query.filter(SignedFilter())
 
 
 @router.callback_query(calls.RememberChatId.filter())
@@ -104,20 +106,28 @@ _ORDER_CONFIRMS = {
 
 async def _order_action(order_id: str, do: str) -> str:
     svbot = get_svbot()
-    order = await sv_call(svbot.account.get_order(order_id))
+    order, done = await sv_call(svbot.order_action(order_id, do))
     short_id = escape(order.short_id or order_id)
     if do == "complete":
-        if order.seller_completed_at:
-            return f"☑️ Заказ <b>{short_id}</b> уже отмечен выполненным"
-        if not await sv_call(svbot.complete_order(order)):
-            raise Exception(f"❌ Не удалось отметить заказ <b>{short_id}</b> выполненным, подробности в логах")
+        if not done:
+            return f"☑️ Заказ <b>{short_id}</b> уже отмечен выполненным или закрыт"
         return f"✅ Заказ <b>{short_id}</b> отмечен выполненным"
-    if do == "refund":
-        if order.is_closed:
-            raise Exception(f"❌ Заказ <b>{short_id}</b> уже закрыт, вернуть деньги нельзя")
-        await sv_call(svbot.account.refund_order(order.id))
-        return f"✅ По заказу <b>{short_id}</b> оформлен возврат"
-    raise Exception("❌ Неизвестное действие")
+    if not done:
+        raise Exception(f"❌ Заказ <b>{short_id}</b> уже закрыт, вернуть деньги нельзя")
+    return f"✅ По заказу <b>{short_id}</b> оформлен возврат"
+
+
+def _delivery_warning(order_id: str) -> str:
+    try:
+        cached = get_svbot().cached_orders.get(order_id) or {}
+    except Exception:
+        return ""
+    state = (cached.get("delivery") or {}).get("state")
+    if state == "delivered":
+        return "\n\n⚠️ Бот уже выдал товар по этому заказу"
+    if state in ("delivering", "partial"):
+        return "\n\n⚠️ Бот прямо сейчас выдаёт товар по этому заказу"
+    return ""
 
 
 async def _order_short_id(order_id: str) -> str:
@@ -143,7 +153,7 @@ async def callback_remember_order_id(callback: CallbackQuery, callback_data: cal
         return await throw_float_message(
             state=state,
             message=callback.message,
-            text=templ.do_action_text(_ORDER_CONFIRMS[do].format(short_id=short_id)),
+            text=templ.do_action_text(_ORDER_CONFIRMS[do].format(short_id=short_id) + (_delivery_warning(order_id) if do == "refund" else "")),
             reply_markup=templ.confirm_kb(
                 confirm_cb=calls.RememberOrderId(id=order_id, do=f"{do}_ok").pack(),
                 cancel_cb="destroy"
@@ -152,6 +162,8 @@ async def callback_remember_order_id(callback: CallbackQuery, callback_data: cal
             reply_to=callback.message.message_id
         )
 
+    if do not in ("complete_ok", "refund_ok"):
+        return await callback.answer()
     try:
         await throw_float_message(state, callback.message, templ.do_action_text("⌛ Выполняю..."), callback=callback)
         text = await _order_action(order_id, do.removesuffix("_ok"))
@@ -165,7 +177,7 @@ async def callback_remember_order_id(callback: CallbackQuery, callback_data: cal
         await throw_float_message(
             state=state,
             message=callback.message,
-            text=templ.do_action_text(e),
+            text=templ.do_action_text(safe_error(e)),
             reply_markup=templ.destroy_kb()
         )
 
@@ -181,7 +193,7 @@ async def callback_order_action(callback: CallbackQuery, callback_data: calls.Or
         return await throw_float_message(
             state=state,
             message=callback.message,
-            text=templ.order_float_text(_ORDER_CONFIRMS[do].format(short_id=short_id)),
+            text=templ.order_float_text(_ORDER_CONFIRMS[do].format(short_id=short_id) + (_delivery_warning(order_id) if do == "refund" else "")),
             reply_markup=templ.confirm_kb(
                 confirm_cb=calls.OrderAction(id=order_id, do=f"{do}_ok").pack(),
                 cancel_cb=calls.OrderPage(id=order_id).pack()
@@ -189,6 +201,8 @@ async def callback_order_action(callback: CallbackQuery, callback_data: calls.Or
             callback=callback
         )
 
+    if do not in ("complete_ok", "refund_ok"):
+        return await callback.answer()
     try:
         await throw_float_message(state, callback.message, templ.order_float_text("⌛ Выполняю..."), callback=callback)
         text = await _order_action(order_id, do.removesuffix("_ok"))
@@ -202,7 +216,7 @@ async def callback_order_action(callback: CallbackQuery, callback_data: calls.Or
         await throw_float_message(
             state=state,
             message=callback.message,
-            text=templ.order_float_text(e),
+            text=templ.order_float_text(safe_error(e)),
             reply_markup=templ.back_kb(calls.OrderPage(id=order_id).pack())
         )
 
@@ -237,7 +251,7 @@ async def callback_fast_send_fast_reply(callback: CallbackQuery, callback_data: 
         await throw_float_message(
             state=state,
             message=callback.message,
-            text=templ.do_action_text(e),
+            text=templ.do_action_text(safe_error(e)),
             reply_markup=templ.destroy_kb(),
             callback=callback
         )
@@ -254,7 +268,7 @@ async def callback_send_fast_reply(callback: CallbackQuery, callback_data: calls
         await throw_float_message(
             state=state,
             message=callback.message,
-            text=templ.chat_float_text(e),
+            text=templ.chat_float_text(safe_error(e)),
             reply_markup=templ.back_kb(calls.ChatPage(id=callback_data.id).pack()),
             callback=callback
         )
