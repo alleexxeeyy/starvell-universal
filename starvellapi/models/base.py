@@ -72,6 +72,14 @@ Tolerant = Annotated[Optional[T], WrapValidator(_or_none)]
 TolerantList = Annotated[list[Annotated[T, WrapValidator(_or_none)]], AfterValidator(_drop_broken), WrapValidator(_or_empty)]
 
 
+def _from_kopecks(value: Any) -> Any:
+    # деньги в заказах и балансах Starvell приходят целым числом в копейках
+    return None if value is None else round(float(value) / 100, 2)
+
+
+Kopecks = Annotated[Optional[float], WrapValidator(_or_none), AfterValidator(_from_kopecks)]
+
+
 def enum_or_str(enum: type[Enum]) -> BeforeValidator:
     # неизвестное значение енума не роняет модель и не теряется: остаётся строкой
     def convert(value: Any) -> Any:

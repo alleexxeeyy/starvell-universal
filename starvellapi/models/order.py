@@ -6,7 +6,7 @@ from typing import Annotated, Any
 
 from pydantic import model_validator
 
-from .base import StarvellModel, Tolerant, TolerantList, enum_or_str
+from .base import Kopecks, StarvellModel, Tolerant, TolerantList, enum_or_str
 from .enums import OrderStatus
 from .offer import OfferDetails
 from .user import UserShort
@@ -38,8 +38,8 @@ class Order(StarvellModel):
     short_id: Tolerant[str] = None
     status: Annotated[OrderStatus | str | None, enum_or_str(OrderStatus)] = None
     quantity: Tolerant[int] = None
-    base_price: Tolerant[float] = None
-    total_price: Tolerant[float] = None
+    base_price: Kopecks = None
+    total_price: Kopecks = None
     buyer_id: Tolerant[int] = None
     seller_id: Tolerant[int] = None
     offer_id: Tolerant[int] = None

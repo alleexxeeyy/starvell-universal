@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated
 
-from .base import StarvellModel, Tolerant, TolerantList, enum_or_str
+from .base import Kopecks, StarvellModel, Tolerant, TolerantList, enum_or_str
 from .enums import KycStatus
 
 
@@ -44,9 +44,9 @@ class AccountUser(UserShort):
 
 
 class Balance(StarvellModel):
-    rub_balance: Tolerant[float] = None
-    holded_rub_balance: Tolerant[float] = None
-    withdrawable_rub_balance: Tolerant[float] = None
+    rub_balance: Kopecks = None
+    holded_rub_balance: Kopecks = None
+    withdrawable_rub_balance: Kopecks = None
     fest_balance: Tolerant[float] = None
     starcoin_balance: Tolerant[float] = None
 
@@ -58,10 +58,10 @@ class OrderCounts(StarvellModel):
 
 
 class InsuranceDepositSummary(StarvellModel):
-    available_amount: Tolerant[float] = None
-    locked_amount: Tolerant[float] = None
+    available_amount: Kopecks = None
+    locked_amount: Kopecks = None
     locked_until: Tolerant[datetime] = None
-    pending_payout_amount: Tolerant[float] = None
+    pending_payout_amount: Kopecks = None
 
 
 class Rank(StarvellModel):
@@ -82,8 +82,8 @@ class Profile(StarvellModel):
     is_imitated: Tolerant[bool] = None
     balance: Tolerant[Balance] = None
     order_counts_by_type: Tolerant[OrderCounts] = None
-    insurance_deposit_amount: Tolerant[float] = None
-    insurance_deposit_available_amount: Tolerant[float] = None
+    insurance_deposit_amount: Kopecks = None
+    insurance_deposit_available_amount: Kopecks = None
     insurance_deposit_summary: Tolerant[InsuranceDepositSummary] = None
     rank_level: Tolerant[RankLevel] = None
     unread_chat_ids: TolerantList[str] = []

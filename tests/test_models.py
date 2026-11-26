@@ -30,7 +30,8 @@ def test_fixtures_parse_without_warnings(caplog):
     assert page.items and page.items[0].created_at.tzinfo is not None
     assert order.status == OrderStatus.CREATED and isinstance(order.status, OrderStatus)
     assert order.offer_public_id and order.offer_id
-    assert order.base_price == 100 and order.total_price == 116
+    # суммы приходят в копейках, модель отдаёт рубли
+    assert order.base_price == 1.0 and order.total_price == 1.16
     assert order.title == "Roblox · Донат робуксов (моментально) · 40 робуксов"
     assert orders[0].user is not None
     assert offer.price == Decimal("1000") and offer.category_id == 40 and offer.game_id == 1

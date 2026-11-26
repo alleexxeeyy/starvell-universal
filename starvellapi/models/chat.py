@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Any
 
-from .base import StarvellModel, Tolerant, TolerantList, enum_or_str
+from .base import Kopecks, StarvellModel, Tolerant, TolerantList, enum_or_str
 from .enums import MessageType, NotificationType
 from .order import Order
 from .user import UserShort
@@ -126,8 +126,8 @@ class OrderNotice(StarvellModel):
 
 class BalanceUpdate(StarvellModel):
     user_id: Tolerant[int] = None
-    rub_balance: Tolerant[float] = None
-    withdrawable_rub_balance: Tolerant[float] = None
+    rub_balance: Kopecks = None
+    withdrawable_rub_balance: Kopecks = None
 
 
 Message.model_rebuild()
